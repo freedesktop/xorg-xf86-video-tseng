@@ -1,5 +1,5 @@
 
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_clock.c,v 1.18 2003/11/03 05:11:44 tsi Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_clock.c,v 1.17 2001/02/15 17:54:55 eich Exp $ */
 
 
 
@@ -45,9 +45,8 @@ Tseng_check_clockchip(ScrnInfoPtr pScrn)
     if (pTseng->pEnt->device->clockchip && *pTseng->pEnt->device->clockchip) {
 	/* clockchip given as a string in the config file */
 	pScrn->clockchip = pTseng->pEnt->device->clockchip;
-	pTseng->ClockChip =
-	 (t_clockchip_type)xf86StringToToken(TsengClockChips, pScrn->clockchip);
-	if (pTseng->ClockChip == CLOCKCHIP_DEFAULT) {
+	pTseng->ClockChip = xf86StringToToken(TsengClockChips, pScrn->clockchip);
+	if (pTseng->ClockChip == -1) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Unknown clockchip: \"%s\"\n",
 		pScrn->clockchip);
 	    return FALSE;

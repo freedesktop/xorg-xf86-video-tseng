@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_ramdac.c,v 1.27 2003/11/03 05:11:45 tsi Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_ramdac.c,v 1.26 2001/10/28 03:33:53 tsi Exp $ */
 
 
 
@@ -333,6 +333,7 @@ Check_Tseng_Ramdac(ScrnInfoPtr pScrn)
     unsigned char cmap[3], save_cmap[3];
     BOOL cr_saved;
     int mclk;
+    int temp;
     int dbyte;
     TsengPtr pTseng = TsengPTR(pScrn);
     rgb zeros = {0, 0, 0};
@@ -347,8 +348,7 @@ Check_Tseng_Ramdac(ScrnInfoPtr pScrn)
      * correct, and don't probe for it.
      */
     if (pScrn->ramdac) {
-	pTseng->DacInfo.DacType =
-	    (t_ramdactype)xf86StringToToken(TsengDacTable, pScrn->ramdac);
+	pTseng->DacInfo.DacType = xf86StringToToken(TsengDacTable, pScrn->ramdac);
 	if (pTseng->DacInfo.DacType < 0) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Unknown RAMDAC type \"%s\" specified\n", pScrn->ramdac);
 	    return FALSE;
@@ -356,7 +356,7 @@ Check_Tseng_Ramdac(ScrnInfoPtr pScrn)
     } else {			       /* autoprobe for the RAMDAC */
 	if (Is_ET6K) {
 	    pTseng->DacInfo.DacType = ET6000_DAC;
-	    (void) inb(pTseng->IOAddress + 0x67);
+	    temp = inb(pTseng->IOAddress + 0x67);
 	    outb(pTseng->IOAddress + 0x67, 10);
 	    mclk = (inb(pTseng->IOAddress + 0x69) + 2) * 14318;
 	    dbyte = inb(pTseng->IOAddress + 0x69);
@@ -428,7 +428,7 @@ Check_Tseng_Ramdac(ScrnInfoPtr pScrn)
     pTseng->DacInfo.NotAttCompat = FALSE;	/* default: treat as ATT compatible DAC */
     pTseng->DacInfo.rgb24packed = zeros;
     pScrn->progClock = FALSE;
-    pTseng->ClockChip = CLOCKCHIP_DEFAULT;
+    pTseng->ClockChip = -1;
     pTseng->MClkInfo.Programmable = FALSE;
 
     /* now override defaults with appropriate values for each RAMDAC */

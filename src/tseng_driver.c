@@ -1,5 +1,5 @@
 /*
- * $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_driver.c,v 1.97tsi Exp $ 
+ * $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_driver.c,v 1.94 2003/08/29 21:07:57 tsi Exp $ 
  *
  * Copyright 1990,91 by Thomas Roell, Dinkelscherben, Germany.
  *
@@ -281,7 +281,7 @@ static XF86ModuleVersionInfo tsengVersRec =
     MODULEVENDORSTRING,
     MODINFOSTRING1,
     MODINFOSTRING2,
-    XORG_VERSION_CURRENT,
+    XF86_VERSION_CURRENT,
     TSENG_MAJOR_VERSION, TSENG_MINOR_VERSION, TSENG_PATCHLEVEL,
     ABI_CLASS_VIDEODRV,		       /* This is a video driver */
     ABI_VIDEODRV_VERSION,
@@ -358,7 +358,7 @@ TsengFreeRec(ScrnInfoPtr pScrn)
     pScrn->driverPrivate = NULL;
 }
 
-static Bool
+static t_tseng_type
 TsengPCI2Type(ScrnInfoPtr pScrn, int ChipID)
 {
     TsengPtr pTseng = TsengPTR(pScrn);
@@ -465,7 +465,7 @@ TsengLock(void)
 static Bool
 ET4000MinimalProbe(void)
 {
-    unsigned char origVal, newVal;
+    unsigned char temp, origVal, newVal;
     int iobase;
 
     PDEBUG("	ET4000MinimalProbe\n");
@@ -479,7 +479,7 @@ ET4000MinimalProbe(void)
      * Check first that there is a ATC[16] register and then look at
      * CRTC[33]. If both are R/W correctly it's a ET4000 !
      */
-    (void) inb(iobase + 0x0A);
+    temp = inb(iobase + 0x0A);
     TsengUnlock();		       /* only ATC 0x16 is protected by KEY */
     outb(0x3C0, 0x16 | 0x20);
     origVal = inb(0x3C1);
@@ -620,8 +620,7 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
     if (pTseng->pEnt->device->chipset && *pTseng->pEnt->device->chipset) {
 	/* chipset given as a string in the config file */
 	pScrn->chipset = pTseng->pEnt->device->chipset;
-	pTseng->ChipType =
-	    (t_tseng_type)xf86StringToToken(TsengChipsets, pScrn->chipset);
+	pTseng->ChipType = xf86StringToToken(TsengChipsets, pScrn->chipset);
 	/* FIXME: still need to probe for W32p revision here */
 	from = X_CONFIG;
     } else if (pTseng->pEnt->device->chipID >= 0) {
@@ -871,7 +870,7 @@ TsengFindNonPciBusType(ScrnInfoPtr pScrn)
 	    pTseng->LinFbAddressMask = 0x3FC00000;	/* A29..A22 */
 	    break;
 	}
-	if (Is_W32p_cd && (pTseng->LinFbAddressMask == 0x3FC00000))
+	if (Is_W32p_cd && (pTseng->LinFbAddressMask = 0x3FC00000))
 	    pTseng->LinFbAddressMask |= 0xC0000000;	/* A31,A30 decoded from PCI config space */
 	break;
     case TYPE_ET6000:
@@ -900,8 +899,7 @@ TsengPreInitNoPCI(ScrnInfoPtr pScrn)
     if (pTseng->pEnt->device->chipset && *pTseng->pEnt->device->chipset) {
 	/* chipset given as a string in the config file */
 	pScrn->chipset = pTseng->pEnt->device->chipset;
-	pTseng->ChipType =
-	    (t_tseng_type)xf86StringToToken(TsengChipsets, pScrn->chipset);
+	pTseng->ChipType = xf86StringToToken(TsengChipsets, pScrn->chipset);
 	from = X_CONFIG;
     } else if (pTseng->pEnt->device->chipID > 0) {
 	/* chipset given as a PCI ID in the config file */
@@ -1237,7 +1235,7 @@ TsengProcessHibit(ScrnInfoPtr pScrn)
     if (xf86IsOptionSet(pTseng->Options, OPTION_HIBIT_HIGH)) {
 	if (xf86IsOptionSet(pTseng->Options, OPTION_HIBIT_LOW)) {
 	    xf86Msg(X_ERROR, "\nOptions \"hibit_high\" and \"hibit_low\" are incompatible;\n");
-	    xf86Msg(X_ERROR, "    specify only one (not both) in X configuration file\n");
+	    xf86Msg(X_ERROR, "    specify only one (not both) in XFree86 configuration file\n");
 	    return FALSE;
 	}
 	pTseng->save_divide = 0x40;
@@ -1253,7 +1251,7 @@ TsengProcessHibit(ScrnInfoPtr pScrn)
 	    xf86Msg(X_WARNING, "Non-standard VGA text or graphics mode while probing for hibit:\n");
 	    xf86Msg(X_WARNING, "    probed 'hibit' value may be wrong.\n");
 	    xf86Msg(X_WARNING, "    Preferably run probe from 80x25 textmode,\n");
-	    xf86Msg(X_WARNING, "    or specify correct value in X configuration file.\n");
+	    xf86Msg(X_WARNING, "    or specify correct value in XFree86 configuration file.\n");
 	}
 	/* Check for initial state of divide flag */
 	outb(0x3C4, 7);
@@ -1406,10 +1404,10 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
 	/* check for possible errors in given linear base address */
 	if ((pTseng->LinFbAddress & (~pTseng->LinFbAddressMask)) != 0) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		"MemBase out of range. Must be <= 0x%lx on 0x%lx boundary.\n",
+		"MemBase out of range. Must be <= 0x%x on 0x%x boundary.\n",
 		pTseng->LinFbAddressMask, ~(pTseng->LinFbAddressMask | 0xFF000000) + 1);
 	    pTseng->LinFbAddress &= ~pTseng->LinFbAddressMask;
-	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "    Clipping MemBase to: 0x%lx.\n",
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "    Clipping MemBase to: 0x%x.\n",
 		pTseng->LinFbAddress);
 	    range[0].rBegin = pTseng->LinFbAddress;
 	    range[0].rEnd = pTseng->LinFbAddress + 16 * 1024 * 1024;
@@ -1473,7 +1471,7 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
 		break;
 	    default:
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "TsengNonPciLinMem(): Internal error. This should not happen: Please check "__VENDORDWEBSUPPORT__"\n");
+		    "TsengNonPciLinMem(): Internal error. This should not happen: please report to XFree86@XFree86.Org\n");
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		    "    Falling back to banked mode.\n");
 		pTseng->UseLinMem = FALSE;
@@ -1765,8 +1763,6 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!TsengGetLinFbAddress(pScrn))
 	    return FALSE;
     }
-    pScrn->memPhysBase = pTseng->LinFbAddress;
-    pScrn->fbOffset = 0;
 
     if (pTseng->UseAccel)
 	VGAHWPTR(pScrn)->MapSize = 0x20000;  /* accelerator apertures and MMIO */
@@ -2769,7 +2765,7 @@ TsengAdjustFrame(int scrnIndex, int x, int y, int flags)
 
 }
 
-static ModeStatus
+ModeStatus
 TsengValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags)
 {
 
@@ -2979,12 +2975,14 @@ static void
 TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
 	     int flags)
 {
+    vgaHWPtr hwp;
     TsengPtr pTseng;
     unsigned char tmp;
     int iobase = VGAHWPTR(pScrn)->IOBase;
 
     PDEBUG("	TsengRestore\n");
 
+    hwp = VGAHWPTR(pScrn);
     pTseng = TsengPTR(pScrn);
 
     TsengProtect(pScrn, TRUE);
