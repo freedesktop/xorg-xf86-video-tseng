@@ -1473,7 +1473,7 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
 		break;
 	    default:
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "TsengNonPciLinMem(): Internal error. This should not happen: Please check wiki.X.Org\n");
+		    "TsengNonPciLinMem(): Internal error. This should not happen: Please check "__VENDORDWEBSUPPORT__"\n");
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		    "    Falling back to banked mode.\n");
 		pTseng->UseLinMem = FALSE;
