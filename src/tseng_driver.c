@@ -281,7 +281,7 @@ static XF86ModuleVersionInfo tsengVersRec =
     MODULEVENDORSTRING,
     MODINFOSTRING1,
     MODINFOSTRING2,
-    XF86_VERSION_CURRENT,
+    XORG_VERSION_CURRENT,
     TSENG_MAJOR_VERSION, TSENG_MINOR_VERSION, TSENG_PATCHLEVEL,
     ABI_CLASS_VIDEODRV,		       /* This is a video driver */
     ABI_VIDEODRV_VERSION,
@@ -1765,6 +1765,8 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!TsengGetLinFbAddress(pScrn))
 	    return FALSE;
     }
+    pScrn->memPhysBase = pTseng->LinFbAddress;
+    pScrn->fbOffset = 0;
 
     if (pTseng->UseAccel)
 	VGAHWPTR(pScrn)->MapSize = 0x20000;  /* accelerator apertures and MMIO */
