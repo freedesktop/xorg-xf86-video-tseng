@@ -1237,7 +1237,7 @@ TsengProcessHibit(ScrnInfoPtr pScrn)
     if (xf86IsOptionSet(pTseng->Options, OPTION_HIBIT_HIGH)) {
 	if (xf86IsOptionSet(pTseng->Options, OPTION_HIBIT_LOW)) {
 	    xf86Msg(X_ERROR, "\nOptions \"hibit_high\" and \"hibit_low\" are incompatible;\n");
-	    xf86Msg(X_ERROR, "    specify only one (not both) in XFree86 configuration file\n");
+	    xf86Msg(X_ERROR, "    specify only one (not both) in X configuration file\n");
 	    return FALSE;
 	}
 	pTseng->save_divide = 0x40;
@@ -1253,7 +1253,7 @@ TsengProcessHibit(ScrnInfoPtr pScrn)
 	    xf86Msg(X_WARNING, "Non-standard VGA text or graphics mode while probing for hibit:\n");
 	    xf86Msg(X_WARNING, "    probed 'hibit' value may be wrong.\n");
 	    xf86Msg(X_WARNING, "    Preferably run probe from 80x25 textmode,\n");
-	    xf86Msg(X_WARNING, "    or specify correct value in XFree86 configuration file.\n");
+	    xf86Msg(X_WARNING, "    or specify correct value in X configuration file.\n");
 	}
 	/* Check for initial state of divide flag */
 	outb(0x3C4, 7);
@@ -1473,7 +1473,7 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
 		break;
 	    default:
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "TsengNonPciLinMem(): Internal error. This should not happen: please report to XFree86@XFree86.Org\n");
+		    "TsengNonPciLinMem(): Internal error. This should not happen: Please check "__VENDORDWEBSUPPORT__"\n");
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		    "    Falling back to banked mode.\n");
 		pTseng->UseLinMem = FALSE;
