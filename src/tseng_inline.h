@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_inline.h,v 1.8 2000/08/08 08:58:07 eich Exp $ */
+/* $XFree86$ */
 
 #include "tseng.h"
 

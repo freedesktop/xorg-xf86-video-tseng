@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_accel.c,v 1.33 2001/02/15 17:54:55 eich Exp $ */
+/* $XFree86$ */
 
 /*
  * ET4/6K acceleration interface.
