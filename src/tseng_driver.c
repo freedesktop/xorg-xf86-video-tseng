@@ -1765,6 +1765,8 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!TsengGetLinFbAddress(pScrn))
 	    return FALSE;
     }
+    pScrn->memPhysBase = pTseng->LinFbAddress;
+    pScrn->fbOffset = 0;
 
     if (pTseng->UseAccel)
 	VGAHWPTR(pScrn)->MapSize = 0x20000;  /* accelerator apertures and MMIO */
