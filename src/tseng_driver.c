@@ -118,7 +118,7 @@ static int pix24bpp = 0;
  * this DriverRec be an upper-case version of the driver name.
  */
 
-DriverRec TSENG =
+_X_EXPORT DriverRec TSENG =
 {
     VERSION,
     TSENG_DRIVER_NAME,
@@ -294,7 +294,7 @@ static XF86ModuleVersionInfo tsengVersRec =
  *
  * Its name has to be the driver name followed by ModuleData.
  */
-XF86ModuleData tsengModuleData = { &tsengVersRec, tsengSetup, NULL };
+_X_EXPORT XF86ModuleData tsengModuleData = { &tsengVersRec, tsengSetup, NULL };
 
 static pointer
 tsengSetup(pointer module, pointer opts, int *errmaj, int *errmin)
