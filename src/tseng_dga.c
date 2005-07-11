@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_dga.c,v 1.2 2001/10/01 13:44:11 eich Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_dga.c,v 1.1 2000/12/06 15:35:24 eich Exp $ */
 /*
  * Copyright 2000 by Rainer Keller, <Rainer.Keller@studmail.uni-stuttgart.de>.
  *
@@ -23,6 +23,10 @@
  * Authors:  Adapted from: Alan Hourihane, <alanh@fairlite.demon.co.uk>
  *           by: Rainer Keller, <Rainer.Keller@studmail.uni-stuttgart.de>
  */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include "tseng.h"
 #include "dgaproc.h"

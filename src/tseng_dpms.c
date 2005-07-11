@@ -1,10 +1,9 @@
 
 /* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_dpms.c,v 1.9 2000/08/08 08:58:06 eich Exp $ */
 
-
-
-
-
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include "tseng.h"
 

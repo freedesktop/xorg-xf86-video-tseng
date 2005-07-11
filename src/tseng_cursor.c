@@ -1,8 +1,8 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_cursor.c,v 1.17 2001/05/07 21:59:07 tsi Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_cursor.c,v 1.16 2000/09/19 12:46:19 eich Exp $ */
 
-
-
-
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include "tseng.h"
 
