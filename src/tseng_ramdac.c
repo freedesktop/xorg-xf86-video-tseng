@@ -612,9 +612,9 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
     case ET6000_DAC:
 	if (pScrn->bitsPerPixel == 16) {
 	    if (rgb555)
-		pTseng->ModeReg.ExtET6K[0x58] &= ~0x02;	/* 5-5-5 RGB mode */
+		pTseng->ModeReg.ET6K_58 &= ~0x02;	/* 5-5-5 RGB mode */
 	    else
-		pTseng->ModeReg.ExtET6K[0x58] |= 0x02;	/* 5-6-5 RGB mode */
+		pTseng->ModeReg.ET6K_58 |= 0x02;	/* 5-6-5 RGB mode */
 	}
 	break;
     case MUSIC4910_DAC:

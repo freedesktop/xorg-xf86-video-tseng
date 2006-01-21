@@ -1,5 +1,5 @@
 
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng.h,v 1.37 2002/04/04 14:05:49 eich Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng.h,v 1.37tsi Exp $ */
 
 
 
@@ -112,6 +112,7 @@ typedef enum {
 } t_ramdactype;
 
 typedef enum {
+    CLOCKCHIP_DEFAULT = -1,
     CLOCKCHIP_ICD2061A,
     CLOCKCHIP_ET6000,
     CLOCKCHIP_ICS5341,
@@ -134,20 +135,29 @@ typedef struct {
     unsigned char w_idx;
     unsigned char r_idx;
     unsigned char timingctrl;	       /* for STG170x */
-    unsigned char MClkM;
-    unsigned char dummy;   /* FIXME!!! : someone overwrites saved MClkN without this */
-    unsigned char MClkN;        /* PLL M/N values for MemClk programming */
+    unsigned char MClkM, MClkN; /* PLL M/N values for MemClk programming */
 } PllState;
 
 typedef struct {
-    unsigned char ExtCRTC[16];	       /* CRTC 0x30 .. 0x3F */
-    unsigned char ExtTS[2];	       /* TS 0x06 .. 0x07 */
-    unsigned char ExtATC;	       /* ATC 0x16 */
-    unsigned char ExtSegSel[2];	       /* 0x3CD , 0x3CB */
-    unsigned char ExtET6K[0x4F];       /* ET6000 PCI config space registers 0x40 .. 0x8F */
-    unsigned char ExtIMACtrl;	       /* IMA port control register (0x217B index 0xF7) */
-    PllState pll;		       /* registers in GenDAC-like RAMDAC/clockchips */
-    unsigned char ATTdac_cmd;	       /* command register for ATT 49x DACs */
+    CARD8 CR30, CR31, CR32, CR33, CR34, CR35, CR36, CR37, CR3F;
+
+    /* TS 0x06 .. 0x07 */
+    CARD8 SR06, SR07;
+
+    /* ATC 0x16 */
+    CARD8 ExtATC;
+
+    /* 0x3CD , 0x3CB */
+    CARD8 ExtSegSel[2];
+
+    /* ET6000 PCI config space registers */
+    CARD8 ET6K_13, ET6K_40, ET6K_41;
+    CARD8 ET6K_44, ET6K_46, ET6K_58;
+
+    CARD8 ExtIMACtrl; /* IMA port control register (0x217B index 0xF7) */
+    PllState pll; /* registers in GenDAC-like RAMDAC/clockchips */
+
+    CARD8 ATTdac_cmd;         /* command register for ATT 49x DACs */
 } TsengRegRec, *TsengRegPtr;
 
 typedef struct {

@@ -99,12 +99,12 @@ static Bool ET4000DetailedProbe(t_tseng_type * chiptype, t_w32_revid * rev);
  */
 static int pix24bpp = 0;
  
-#define VERSION 4000
 #define TSENG_NAME "TSENG"
 #define TSENG_DRIVER_NAME "tseng"
 #define TSENG_MAJOR_VERSION 1
 #define TSENG_MINOR_VERSION 0
 #define TSENG_PATCHLEVEL 0
+#define TSENG_VERSION (TSENG_MAJOR_VERSION << 24) | (TSENG_MINOR_VERSION << 16) | TSENG_PATCHLEVEL
 
 /* CRTC timing limits */
 #define Tseng_HMAX (4096-8)
@@ -120,7 +120,7 @@ static int pix24bpp = 0;
 
 _X_EXPORT DriverRec TSENG =
 {
-    VERSION,
+    TSENG_VERSION,
     TSENG_DRIVER_NAME,
     TsengIdentify,
     TsengProbe,
@@ -410,7 +410,7 @@ TsengIdentify(int flags)
 static void
 TsengAssignFPtr(ScrnInfoPtr pScrn)
 {
-    pScrn->driverVersion = VERSION;
+    pScrn->driverVersion = TSENG_VERSION;
     pScrn->driverName = TSENG_DRIVER_NAME;
     pScrn->name = TSENG_NAME;
     pScrn->Probe = TsengProbe;
@@ -2481,11 +2481,11 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 
     hwp->ModeReg.CRTC[20] = 0x60;
     hwp->ModeReg.CRTC[23] = 0xAB;
-    new->ExtTS[6] = 0x00;
-    new->ExtTS[7] = 0xBC;
-    new->ExtCRTC[0x33] = 0x00;
+    new->SR06 = 0x00;
+    new->SR07 = 0xBC;
+    new->CR33 = 0x00;
 
-    new->ExtCRTC[0x35] = (mode->Flags & V_INTERLACE ? 0x80 : 0x00)
+    new->CR35 = (mode->Flags & V_INTERLACE ? 0x80 : 0x00)
 	| 0x10
 	| ((mode->CrtcVSyncStart & 0x400) >> 7)
 	| (((mode->CrtcVDisplay - 1) & 0x400) >> 8)
@@ -2509,11 +2509,11 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	     * Note, this is experimental, but works for me (DHD)
 	     */
 	    /* Tcsw, Tcsp, Trsp */
-	    new->ExtCRTC[0x32] &= ~0x1F;
-	    if (new->ExtCRTC[0x32] & 0x18)
-		new->ExtCRTC[0x32] |= 0x08;
+	    new->CR32 &= ~0x1F;
+	    if (initial->CR32 & 0x18)
+		new->CR32 |= 0x08;
 	    /* Trcd */
-	    new->ExtCRTC[0x32] &= ~0x20;
+	    new->CR32 &= ~0x20;
 	}
     }
     /*
@@ -2528,17 +2528,17 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      */
     if (Is_W32i || Is_W32p) {
 	if (!pTseng->SlowDram)
-	    new->ExtCRTC[0x34] = (new->ExtCRTC[0x34] & 0x7F) | 0x80;
+	    new->CR34 |= 0x80;
 	if ((mode->Clock * pTseng->Bytesperpixel) > 80000)
-	    new->ExtCRTC[0x37] = (new->ExtCRTC[0x37] & 0x7f) | 0x80;
+	    new->CR37 |= 0x80;
 	/*
 	 * now on to the memory interleave setting (CR32 bit 7)
 	 */
 	if (pTseng->SetW32Interleave) {
 	    if (pTseng->W32Interleave)
-		new->ExtCRTC[0x32] |= 0x80;
+		new->CR32 |= 0x80;
 	    else
-		new->ExtCRTC[0x32] &= 0x7F;
+		new->CR32 &= 0x7F;
 	}
     }
     if (Is_W32p) {
@@ -2547,9 +2547,9 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	 */
 	if (pTseng->SetPCIBurst) {
 	    if (pTseng->PCIBurst)
-		new->ExtCRTC[0x34] |= 0x10;
+		new->CR34 |= 0x10;
 	    else
-		new->ExtCRTC[0x34] &= 0xEF;
+		new->CR34 &= 0xEF;
 	}
     }
 
@@ -2602,13 +2602,13 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	    &(new->pll.f2_M), &(new->pll.f2_N));
 	/* above 130MB/sec, we enable the "LOW FIFO threshold" */
 	if (mode->Clock * pTseng->Bytesperpixel > 130000) {
-	    new->ExtET6K[0x41] |= 0x10;
+	    new->ET6K_41 |= 0x10;
 	    if (Is_ET6100)
-		new->ExtET6K[0x46] |= 0x04;
+		new->ET6K_46 |= 0x04;
 	} else {
-	    new->ExtET6K[0x41] &= ~0x10;
+	    new->ET6K_41 &= ~0x10;
 	    if (Is_ET6100)
-		new->ExtET6K[0x46] &= ~0x04;
+		new->ET6K_46 &= ~0x04;
 	}
 
 	if (pTseng->MClkInfo.Set) {
@@ -2620,16 +2620,16 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	/* 
 	 * Even when we don't allow setting the MClk value as described
 	 * above, we can use the FAST/MED/SLOW DRAM options to set up
-	 * the RAS/CAS delays as decided by the value of ExtET6K[0x44].
+	 * the RAS/CAS delays as decided by the value of ET6K_44.
 	 * This is also a more correct use of the flags, as it describes
 	 * how fast the RAM works. [HNH].
 	 */
 	if (pTseng->FastDram)
-	    new->ExtET6K[0x44] = 0x04; /* Fastest speed(?) */
+	    new->ET6K_44 = 0x04; /* Fastest speed(?) */
 	else if (pTseng->MedDram)
-	    new->ExtET6K[0x44] = 0x15; /* Medium speed */
+	    new->ET6K_44 = 0x15; /* Medium speed */
 	else if (pTseng->SlowDram)
-	    new->ExtET6K[0x44] = 0x35; /* Slow speed */
+	    new->ET6K_44 = 0x35; /* Slow speed */
 	else
 	    ;		               /* keep current value */
     }
@@ -2651,16 +2651,16 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     if (mode->ClockIndex >= 0) {
 	/* CS0 and CS1 are set by standard VGA code (vgaHW) */
 	/* CS2 = CRTC 0x34 bit 1 */
-	new->ExtCRTC[0x34] = (new->ExtCRTC[0x34] & 0xFD) |
+	new->CR34 = (new->CR34 & 0xFD) |
 	    ((mode->ClockIndex & 0x04) >> 1);
 	/* for programmable clocks: disable MCLK/2 and MCLK/4 independent of hibit */
-	new->ExtTS[7] = (new->ExtTS[7] & 0xBE);
+	new->SR07 = (new->SR07 & 0xBE);
 	if (!pScrn->progClock) {
 	    /* clock select bit 3 = MCLK/2 disable/enable */
-	    new->ExtTS[7] |= (pTseng->save_divide ^ ((mode->ClockIndex & 0x08) << 3));
+	    new->SR07 |= (pTseng->save_divide ^ ((mode->ClockIndex & 0x08) << 3));
 	}
 	/* clock select bit 4 = CS3 , clear CS4 */
-	new->ExtCRTC[0x31] = ((mode->ClockIndex & 0x10) << 2) | (new->ExtCRTC[0x31] & 0x3F);
+	new->CR31 = ((mode->ClockIndex & 0x10) << 2) | (new->CR31 & 0x3F);
     }
     /*
      * linear mode handling
@@ -2668,26 +2668,26 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 
     if (Is_ET6K) {
 	if (pTseng->UseLinMem) {
-	    new->ExtET6K[0x13] = pTseng->LinFbAddress >> 24;
-	    new->ExtET6K[0x40] |= 0x09;
+	    new->ET6K_13 = pTseng->LinFbAddress >> 24;
+	    new->ET6K_40 |= 0x09;
 	} else {
-	    new->ExtET6K[0x40] &= ~0x09;
+	    new->ET6K_40 &= ~0x09;
 	}
     } else {			       /* et4000 style linear memory */
 	if (pTseng->UseLinMem) {
-	    new->ExtCRTC[0x36] |= 0x10;
+	    new->CR36 |= 0x10;
 	    if (Is_W32p || Is_ET6K)
-		new->ExtCRTC[0x30] = (pTseng->LinFbAddress >> 22) & 0xFF;
+		new->CR30 = (pTseng->LinFbAddress >> 22) & 0xFF;
 	    else
-		new->ExtCRTC[0x30] = ((pTseng->LinFbAddress >> 22) & 0x1F) ^ 0x1c;	/* invert bits 4..2 */
+		new->CR30 = ((pTseng->LinFbAddress >> 22) & 0x1F) ^ 0x1c;	/* invert bits 4..2 */
 	    hwp->ModeReg.Graphics[6] &= ~0x0C;
 	    new->ExtIMACtrl &= ~0x01;  /* disable IMA port (to get >1MB lin mem) */
 	} else {
-	    new->ExtCRTC[0x36] &= ~0x10;
+	    new->CR36 &= ~0x10;
 	    if (pTseng->ChipType < TYPE_ET4000W32P)
-		new->ExtCRTC[0x30] = 0x1C;	/* default value */
+		new->CR30 = 0x1C;	/* default value */
 	    else
-		new->ExtCRTC[0x30] = 0x00;
+		new->CR30 = 0x00;
 	}
     }
 
@@ -2704,7 +2704,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      */
 
     hwp->ModeReg.CRTC[19] = row_offset;
-    new->ExtCRTC[0x3F] = ((((mode->CrtcHTotal >> 3) - 5) & 0x100) >> 8)
+    new->CR3F = ((((mode->CrtcHTotal >> 3) - 5) & 0x100) >> 8)
 	| ((((mode->CrtcHDisplay >> 3) - 1) & 0x100) >> 7)
 	| ((((mode->CrtcHBlankStart >> 3) - 1) & 0x100) >> 6)
 	| (((mode->CrtcHSyncStart >> 3) & 0x100) >> 4)
@@ -2718,11 +2718,11 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     if (pTseng->UseAccel) {
 	if (Is_ET6K) {
 	    if (pTseng->UseLinMem)
-		new->ExtET6K[0x40] |= 0x02;	/* MMU can't be used here (causes system hang...) */
+		new->ET6K_40 |= 0x02;	/* MMU can't be used here (causes system hang...) */
 	    else
-		new->ExtET6K[0x40] |= 0x06;	/* MMU is needed in banked accelerated mode */
+		new->ET6K_40 |= 0x06;	/* MMU is needed in banked accelerated mode */
 	} else {
-	    new->ExtCRTC[0x36] |= 0x28;
+	    new->CR36 |= 0x28;
 	}
     }
     vgaHWUnlock(hwp);		       /* TODO: is this needed (tsengEnterVT does this) */
@@ -2821,7 +2821,7 @@ TsengSave(ScrnInfoPtr pScrn)
      */
     outb(iobase + 4, 0x34);
     temp = inb(iobase + 5);
-    tsengReg->ExtCRTC[0x34] = temp;
+    tsengReg->CR34 = temp;
     if (Is_stdET4K || Is_W32_W32i || Is_W32p_ab) {
 #ifdef OLD_CODE
 	outb(iobase + 5, temp & 0x1F);
@@ -2841,26 +2841,26 @@ TsengSave(ScrnInfoPtr pScrn)
     tsengReg->ExtSegSel[1] = saveseg2;
 
     outb(iobase + 4, 0x33);
-    tsengReg->ExtCRTC[0x33] = inb(iobase + 5);
+    tsengReg->CR33 = inb(iobase + 5);
     outb(iobase + 4, 0x35);
-    tsengReg->ExtCRTC[0x35] = inb(iobase + 5);
+    tsengReg->CR35 = inb(iobase + 5);
     if (Is_W32_any) {
 	outb(iobase + 4, 0x36);
-	tsengReg->ExtCRTC[0x36] = inb(iobase + 5);
+	tsengReg->CR36 = inb(iobase + 5);
 	outb(iobase + 4, 0x37);
-	tsengReg->ExtCRTC[0x37] = inb(iobase + 5);
+	tsengReg->CR37 = inb(iobase + 5);
 	outb(0x217a, 0xF7);
 	tsengReg->ExtIMACtrl = inb(0x217b);
     }
     if (!Is_ET6K) {
 	outb(iobase + 4, 0x32);
-	tsengReg->ExtCRTC[0x32] = inb(iobase + 5);
+	tsengReg->CR32 = inb(iobase + 5);
     }
     outb(0x3C4, 6);
-    tsengReg->ExtTS[6] = inb(0x3C5);
+    tsengReg->SR06 = inb(0x3C5);
     outb(0x3C4, 7);
-    tsengReg->ExtTS[7] = inb(0x3C5);
-    tsengReg->ExtTS[7] |= 0x14;
+    tsengReg->SR07 = inb(0x3C5);
+    tsengReg->SR07 |= 0x14;
     temp = inb(iobase + 0x0A);	       /* reset flip-flop */
     outb(0x3C0, 0x36);
     tsengReg->ExtATC = inb(0x3C1);
@@ -2955,19 +2955,19 @@ TsengSave(ScrnInfoPtr pScrn)
 	tsengReg->ATTdac_cmd = tseng_getdaccomm();
 
     if (Is_ET6K) {
-	tsengReg->ExtET6K[0x13] = inb(pTseng->IOAddress + 0x13);
-	tsengReg->ExtET6K[0x40] = inb(pTseng->IOAddress + 0x40);
-	tsengReg->ExtET6K[0x58] = inb(pTseng->IOAddress + 0x58);
-	tsengReg->ExtET6K[0x41] = inb(pTseng->IOAddress + 0x41);
-	tsengReg->ExtET6K[0x44] = inb(pTseng->IOAddress + 0x44);
-	tsengReg->ExtET6K[0x46] = inb(pTseng->IOAddress + 0x46);
+	tsengReg->ET6K_13 = inb(pTseng->IOAddress + 0x13);
+	tsengReg->ET6K_40 = inb(pTseng->IOAddress + 0x40);
+	tsengReg->ET6K_58 = inb(pTseng->IOAddress + 0x58);
+	tsengReg->ET6K_41 = inb(pTseng->IOAddress + 0x41);
+	tsengReg->ET6K_44 = inb(pTseng->IOAddress + 0x44);
+	tsengReg->ET6K_46 = inb(pTseng->IOAddress + 0x46);
     }
     outb(iobase + 4, 0x30);
-    tsengReg->ExtCRTC[0x30] = inb(iobase + 5);
+    tsengReg->CR30 = inb(iobase + 5);
     outb(iobase + 4, 0x31);
-    tsengReg->ExtCRTC[0x31] = inb(iobase + 5);
+    tsengReg->CR31 = inb(iobase + 5);
     outb(iobase + 4, 0x3F);
-    tsengReg->ExtCRTC[0x3F] = inb(iobase + 5);
+    tsengReg->CR3F = inb(iobase + 5);
 }
 
 /*
@@ -3102,31 +3102,31 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
 	tseng_setdaccomm(tsengReg->ATTdac_cmd);
 
     if (Is_ET6K) {
-	outb(pTseng->IOAddress + 0x13, tsengReg->ExtET6K[0x13]);
-	outb(pTseng->IOAddress + 0x40, tsengReg->ExtET6K[0x40]);
-	outb(pTseng->IOAddress + 0x58, tsengReg->ExtET6K[0x58]);
-	outb(pTseng->IOAddress + 0x41, tsengReg->ExtET6K[0x41]);
-	outb(pTseng->IOAddress + 0x44, tsengReg->ExtET6K[0x44]);
-	outb(pTseng->IOAddress + 0x46, tsengReg->ExtET6K[0x46]);
+	outb(pTseng->IOAddress + 0x13, tsengReg->ET6K_13);
+	outb(pTseng->IOAddress + 0x40, tsengReg->ET6K_40);
+	outb(pTseng->IOAddress + 0x58, tsengReg->ET6K_58);
+	outb(pTseng->IOAddress + 0x41, tsengReg->ET6K_41);
+	outb(pTseng->IOAddress + 0x44, tsengReg->ET6K_44);
+	outb(pTseng->IOAddress + 0x46, tsengReg->ET6K_46);
     }
-    outw(iobase + 4, (tsengReg->ExtCRTC[0x3F] << 8) | 0x3F);
-    outw(iobase + 4, (tsengReg->ExtCRTC[0x30] << 8) | 0x30);
-    outw(iobase + 4, (tsengReg->ExtCRTC[0x31] << 8) | 0x31);
+    outw(iobase + 4, (tsengReg->CR3F << 8) | 0x3F);
+    outw(iobase + 4, (tsengReg->CR30 << 8) | 0x30);
+    outw(iobase + 4, (tsengReg->CR31 << 8) | 0x31);
     vgaHWRestore(pScrn, vgaReg, flags); /* TODO: does this belong HERE, in the middle? */
-    outw(0x3C4, (tsengReg->ExtTS[6] << 8) | 0x06);
-    outw(0x3C4, (tsengReg->ExtTS[7] << 8) | 0x07);
+    outw(0x3C4, (tsengReg->SR06 << 8) | 0x06);
+    outw(0x3C4, (tsengReg->SR07 << 8) | 0x07);
     tmp = inb(iobase + 0x0A);	       /* reset flip-flop */
     outb(0x3C0, 0x36);
     outb(0x3C0, tsengReg->ExtATC);
-    outw(iobase + 4, (tsengReg->ExtCRTC[0x33] << 8) | 0x33);
-    outw(iobase + 4, (tsengReg->ExtCRTC[0x34] << 8) | 0x34);
-    outw(iobase + 4, (tsengReg->ExtCRTC[0x35] << 8) | 0x35);
+    outw(iobase + 4, (tsengReg->CR33 << 8) | 0x33);
+    outw(iobase + 4, (tsengReg->CR34 << 8) | 0x34);
+    outw(iobase + 4, (tsengReg->CR35 << 8) | 0x35);
     if (Is_W32_any) {
-	outw(iobase + 4, (tsengReg->ExtCRTC[0x37] << 8) | 0x37);
+	outw(iobase + 4, (tsengReg->CR37 << 8) | 0x37);
 	outw(0x217a, (tsengReg->ExtIMACtrl << 8) | 0xF7);
     }
     if (!Is_ET6K) {
-	outw(iobase + 4, (tsengReg->ExtCRTC[0x32] << 8) | 0x32);
+	outw(iobase + 4, (tsengReg->CR32 << 8) | 0x32);
     }
     outb(0x3CD, tsengReg->ExtSegSel[0]);
     if (pTseng->ChipType > TYPE_ET4000)
@@ -3153,7 +3153,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
      * also resets the linear mode bits in CRTC 0x36.
      */
     if (Is_W32_any) {
-	outw(iobase + 4, (tsengReg->ExtCRTC[0x36] << 8) | 0x36);
+	outw(iobase + 4, (tsengReg->CR36 << 8) | 0x36);
     }
 }
 

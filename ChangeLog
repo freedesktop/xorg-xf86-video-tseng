@@ -1,3 +1,13 @@
+2006-01-21  Luc Verhaegen,,,  <set EMAIL_ADDRESS environment variable>
+
+	reviewed by: <delete if not using a buddy>
+
+	* configure.ac:
+	* src/tseng.h:
+	* src/tseng_driver.c: (TsengAssignFPtr), (TsengModeInit),
+	(TsengSave):
+	* src/tseng_ramdac.c: (tseng_set_ramdac_bpp):
+
 2005-12-20  Kevin E. Martin  <kem-at-freedesktop-dot-org>
 
 	* configure.ac:
