@@ -1,5 +1,26 @@
 2006-01-22  Luc Verhaegen  <libv@skynet.be>
 
+	* .cvsignore:
+	* man/.cvsignore:
+	* src/tseng.h:
+	* src/tseng_clock.c: (tseng_clock_setup):
+	* src/tseng_driver.c: (TsengProcessOptions), (TsengPreInit),
+	(TsengModeInit), (TsengSave), (TsengRestore), (ET4000Probe), (if):
+	* src/tseng_ramdac.c: (vgaHWReadDacWriteAddr),
+	(tsengSTG170xDetect), (tsengCH8398Detect), (TsengRAMDACProbe),
+	(tseng_set_ramdac_bpp):
+
+	Clean up ramdac handling.
+	- Remove all ramdacs except STG1703 and CH8398. Both are in my
+	  possession, both are currently broken and have been for ages,
+	  but both will be fixed. ICS5341 is out there somewhere too,
+	  will be added when i get my hands on it.
+	- Cleanly split up ET4000 handling and ET6000 code, both for
+	  dotclock, memory clocking and ramdac.
+	- Limit driver to either 8, 16, 24 or 32bits.
+
+2006-01-22  Luc Verhaegen  <libv@skynet.be>
+
 	* src/Makefile.am:
 	* src/tseng.h:
 	* src/tseng_accel.c: (TsengXAAInit):

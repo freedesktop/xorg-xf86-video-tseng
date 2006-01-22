@@ -79,37 +79,11 @@ typedef enum {
     REV_ET6100
 } tseng_chiprev;
 
-extern SymTabRec TsengDacTable[];
-
 typedef enum {
     UNKNOWN_DAC = -1,
-    NORMAL_DAC,
-    ATT20C47xA_DAC,
-    Sierra1502X_DAC,
-    ATT20C497_DAC,
-    ATT20C490_DAC,
-    ATT20C493_DAC,
-    ATT20C491_DAC,
-    ATT20C492_DAC,
-    ICS5341_DAC,
-    ICS5301_DAC,
-    STG1700_DAC,
-    STG1702_DAC,
-    STG1703_DAC,
-    ET6000_DAC,
-    CH8398_DAC,
-    MUSIC4910_DAC
-} t_ramdactype;
-
-typedef enum {
-    CLOCKCHIP_DEFAULT = -1,
-    CLOCKCHIP_ICD2061A,
-    CLOCKCHIP_ET6000,
-    CLOCKCHIP_ICS5341,
-    CLOCKCHIP_ICS5301,
-    CLOCKCHIP_CH8398,
-    CLOCKCHIP_STG1703
-} t_clockchip_type;
+    STG1703,
+    CH8398
+} tseng_ramdac;
 
 typedef enum {
     TSENG_MODE_NORMAL,
@@ -145,36 +119,10 @@ typedef struct {
     CARD8 ET6K_44, ET6K_46, ET6K_58;
 
     CARD8 ExtIMACtrl; /* IMA port control register (0x217B index 0xF7) */
-    PllState pll; /* registers in GenDAC-like RAMDAC/clockchips */
+    PllState pll; /* registers in GenDAC-like RAMDAC */
 
     CARD8 ATTdac_cmd;         /* command register for ATT 49x DACs */
 } TsengRegRec, *TsengRegPtr;
-
-typedef struct {
-    unsigned char save1, save2, save3, save4;
-} clock_save;
-
-typedef struct {
-    Bool Programmable;	      	       /* MemClk is programmable if set */
-    Bool Set;			       /* reprogram MClk if TRUE */
-    int MemClk;                        /* MemClk value in kHz */
-    int min, max;	  	       /* MemClk limits */
-} TsengMClkInfoRec, *TsengMclkInfoPtr;
-
-typedef struct {
-    int saved_cr;
-    int rmr;
-} dac_save;
-
-typedef struct {
-    t_ramdactype DacType;
-    Bool NotAttCompat;		       /* avoid treating the RAMDAC as AT&T compatible */
-    int RamdacShift;		       /* typically 10 or 8 for 6- or 8-bit dac */
-    int RamdacMask;		       /* typically 0x3f for 6 bit, 0xff for 8-bit ramdac */
-    Bool Dac8Bit;		       /* dac is 8 bit instead of the default 6 bit */
-    Bool DacPort16;		       /* Ramdac port is 16 bits wide instead of default 8 */
-    rgb rgb24packed;
-} TsengDacInfoRec, *TsengDacInfoPtr;
 
 typedef struct {
     /* we'll put variables that we want to access _fast_ at the beginning (just a hunch) */
@@ -202,11 +150,9 @@ typedef struct {
     Bool SetW32Interleave;
     Bool W32Interleave;
     Bool ShowCache;
-    Bool Legend;		       /* Sigma Legend clock select method */
-    Bool NoClockchip;		       /* disable clockchip programming clockchip (=use set-of-clocks) */
+
     TsengRegRec SavedReg;	       /* saved Tseng registers at server start */
     TsengRegRec ModeReg;
-    unsigned long icd2061_dwv;	       /* To hold the clock data between Init and Restore */
 
     tseng_chiptype  ChipType;  /* "Chipset" causes confusion with pScrn->chipset */
     tseng_chiprev  ChipRev;
@@ -219,11 +165,10 @@ typedef struct {
 
     int MinClock;
     int MaxClock;
-    int MemClk;
+    int MemClk;  /* ET6000 only */
     ClockRangePtr clockRange[2];
-    TsengDacInfoRec DacInfo;
-    TsengMClkInfoRec MClkInfo;
-    t_clockchip_type ClockChip;
+    tseng_ramdac RAMDAC; /* ET4000W32p only */
+
     int max_vco_freq;                  /* max internal VCO frequency */
     CloseScreenProcPtr CloseScreen;
     int save_divide;
@@ -244,9 +189,9 @@ typedef struct {
     CARD32 acl_ColorExpandDst;
     int acl_colexp_width_dwords;
     int acl_colexp_width_bytes;
-    dac_save dac;
+
     CARD32* ColExpLUT;
-    clock_save save_clock;
+
     EntityInfoPtr       pEnt;
 
     pointer scratchMemBase;
@@ -267,41 +212,6 @@ typedef struct {
 
 #define TsengPTR(p) ((TsengPtr)((p)->driverPrivate))
 
-#define DAC_IS_ATT49x ( (pTseng->DacInfo.DacType == ATT20C490_DAC) \
-                     || (pTseng->DacInfo.DacType == ATT20C491_DAC) \
-                     || (pTseng->DacInfo.DacType == ATT20C492_DAC) \
-                     || (pTseng->DacInfo.DacType == ATT20C493_DAC) \
-                     || (pTseng->DacInfo.DacType == MUSIC4910_DAC) )
-
-#define DAC_is_GenDAC ( (pTseng->DacInfo.DacType == ICS5341_DAC) \
-                     || (pTseng->DacInfo.DacType == ICS5301_DAC) )
-
-#define DAC_is_STG170x ( (pTseng->DacInfo.DacType == STG1700_DAC) \
-                      || (pTseng->DacInfo.DacType == STG1702_DAC) \
-                      || (pTseng->DacInfo.DacType == STG1703_DAC) )
-
-#define DAC_IS_CHRONTEL (pTseng->DacInfo.DacType == CH8398_DAC)
-
-#define Gendac_programmable_clock \
-        ( pScrn->progClock && \
-          (   (pTseng->ClockChip == CLOCKCHIP_ICS5341) \
-           || (pTseng->ClockChip == CLOCKCHIP_ICS5301) \
-          ) \
-        )
-
-#define STG170x_programmable_clock \
-        ( pScrn->progClock && (pTseng->ClockChip == CLOCKCHIP_STG1703) )
-
-#define ICD2061a_programmable_clock \
-        ( pScrn->progClock && (pTseng->ClockChip == CLOCKCHIP_ICD2061A) )
-
-#define CH8398_programmable_clock \
-        ( pScrn->progClock && (pTseng->ClockChip == CLOCKCHIP_CH8398) )
-
-#define ET6000_programmable_clock \
-        ( pScrn->progClock && (pTseng->ClockChip == CLOCKCHIP_ET6000) )
-
-
 /*
  * tseng_driver.c for DGA
  */
@@ -316,8 +226,6 @@ Bool TsengDGAInit(ScreenPtr pScreen);
 /*
  * From tseng_clocks.c
  */
-
-Bool Tseng_check_clockchip(ScrnInfoPtr pScrn);
 void tseng_clock_setup(ScrnInfoPtr pScrn);
 void TsengcommonCalcClock(long freq,
     int min_m, int min_n1, int max_n1, int min_n2, int max_n2,
@@ -327,13 +235,7 @@ void TsengcommonCalcClock(long freq,
 /*
  * From tseng_ramdac.c
  */
-
-void tseng_dactopel(void);
-unsigned char tseng_dactocomm(void);
-unsigned char tseng_getdaccomm(void);
-void tseng_setdaccomm(unsigned char comm);
-
-Bool Check_Tseng_Ramdac(ScrnInfoPtr pScrn);
+Bool TsengRAMDACProbe(ScrnInfoPtr pScrn);
 void tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode);
 
 /*
