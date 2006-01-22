@@ -34,12 +34,14 @@ AM_INIT_AUTOMAKE([dist-bzip2])
 
 AM_MAINTAINER_MODE
 
-CFLAGS="$CFLAGS -Wall -pedantic"
-
 # Checks for programs.
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
 AC_PROG_CC
+
+if test "x$GCC" = "xyes"; then
+    CFLAGS="$CFLAGS -Wall -pedantic"
+fi
 
 AH_TOP([#include "xorg-server.h"])
 

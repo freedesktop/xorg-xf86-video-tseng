@@ -91,8 +91,6 @@ static void TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengR
 static void TsengUnlock(void);
 static void TsengLock(void);
 
-static Bool ET4000DetailedProbe(t_tseng_type * chiptype, t_w32_revid * rev);
-
 /*
  * This is intentionally screen-independent.  It indicates the binding
  * choice made in the first PreInit.
@@ -132,34 +130,20 @@ _X_EXPORT DriverRec TSENG =
 /* sub-revisions are now dealt with in the ChipRev variable */
 static SymTabRec TsengChipsets[] =
 {
-    {TYPE_ET4000,	"ET4000"},
-    {TYPE_ET4000W32,	"ET4000W32"},
-    {TYPE_ET4000W32I,	"ET4000W32i"},
-    {TYPE_ET4000W32P,	"ET4000W32p"},
-    {TYPE_ET6000,	"ET6000"},
-    {TYPE_ET6100,	"ET6100"},
-    {TYPE_TSENG,	""},
+    {ET4000, "ET4000W32p"},
+    {ET6000, "ET6000"},
     {-1, NULL}
 };
 
 /* Convert PCI ID to chipset name */
 static PciChipsets TsengPciChipsets[] =
 {
-    {TYPE_ET4000W32P,	PCI_CHIP_ET4000_W32P_A,		RES_SHARED_VGA},
-    {TYPE_ET4000W32P,	PCI_CHIP_ET4000_W32P_B,		RES_SHARED_VGA},
-    {TYPE_ET4000W32P,	PCI_CHIP_ET4000_W32P_C,		RES_SHARED_VGA},
-    {TYPE_ET4000W32P,	PCI_CHIP_ET4000_W32P_D,		RES_SHARED_VGA},
-    {TYPE_ET6000,	PCI_CHIP_ET6000,		RES_SHARED_VGA},
-    {-1,			-1,			RES_UNDEFINED}
-};
-    
-static IsaChipsets TsengIsaChipsets[] =
-{
-    {TYPE_ET4000,	RES_EXCLUSIVE_VGA},
-    {TYPE_ET4000W32,	RES_EXCLUSIVE_VGA},
-    {TYPE_ET4000W32I,	RES_EXCLUSIVE_VGA},
-    {TYPE_TSENG,        RES_EXCLUSIVE_VGA},
-    {-1,		RES_UNDEFINED}
+    {ET4000, PCI_CHIP_ET4000_W32P_A, RES_SHARED_VGA},
+    {ET4000, PCI_CHIP_ET4000_W32P_B, RES_SHARED_VGA},
+    {ET4000, PCI_CHIP_ET4000_W32P_C, RES_SHARED_VGA},
+    {ET4000, PCI_CHIP_ET4000_W32P_D, RES_SHARED_VGA},
+    {ET6000, PCI_CHIP_ET6000,        RES_SHARED_VGA},
+    {-1,     -1,                     RES_UNDEFINED}
 };
 
 typedef enum {
@@ -358,41 +342,6 @@ TsengFreeRec(ScrnInfoPtr pScrn)
     pScrn->driverPrivate = NULL;
 }
 
-static Bool
-TsengPCI2Type(ScrnInfoPtr pScrn, int ChipID)
-{
-    TsengPtr pTseng = TsengPTR(pScrn);
-
-    switch (ChipID) {
-    case PCI_CHIP_ET4000_W32P_A:
-	pTseng->ChipType = TYPE_ET4000W32P;
-	pTseng->ChipRev = W32REVID_A;
-	break;
-    case PCI_CHIP_ET4000_W32P_B:
-	pTseng->ChipType = TYPE_ET4000W32P;
-	pTseng->ChipRev = W32REVID_B;
-	break;
-    case PCI_CHIP_ET4000_W32P_C:
-	pTseng->ChipType = TYPE_ET4000W32P;
-	pTseng->ChipRev = W32REVID_C;
-	break;
-    case PCI_CHIP_ET4000_W32P_D:
-	pTseng->ChipType = TYPE_ET4000W32P;
-	pTseng->ChipRev = W32REVID_D;
-	break;
-    case PCI_CHIP_ET6000:
-	pTseng->ChipType = TYPE_ET6000;
-	pTseng->ChipRev = pTseng->PciInfo->chipRev;	/* ET6000 != ET6100 */
-	if (pTseng->ChipRev >= ET6100REVID)
-	    pTseng->ChipType = TYPE_ET6100;
-	break;
-    default:
-	xf86Msg(X_ERROR, "%s: Unknown Tseng PCI ID: %X\n", TSENG_NAME, ChipID);
-	return FALSE;
-    }
-    return TRUE;
-}
-
 static const OptionInfoRec *
 TsengAvailableOptions(int chipid, int busid)
 {
@@ -402,26 +351,8 @@ TsengAvailableOptions(int chipid, int busid)
 static void
 TsengIdentify(int flags)
 {
-    PDEBUG("	TsengIdentify\n");
-    xf86PrintChipsets(TSENG_NAME, "driver for Tseng Labs chipsets",
-	TsengChipsets);
-}
-
-static void
-TsengAssignFPtr(ScrnInfoPtr pScrn)
-{
-    pScrn->driverVersion = TSENG_VERSION;
-    pScrn->driverName = TSENG_DRIVER_NAME;
-    pScrn->name = TSENG_NAME;
-    pScrn->Probe = TsengProbe;
-    pScrn->PreInit = TsengPreInit;
-    pScrn->ScreenInit = TsengScreenInit;
-    pScrn->SwitchMode = TsengSwitchMode;
-    pScrn->AdjustFrame = TsengAdjustFrame;
-    pScrn->EnterVT = TsengEnterVT;
-    pScrn->LeaveVT = TsengLeaveVT;
-    pScrn->FreeScreen = TsengFreeScreen;
-    pScrn->ValidMode = TsengValidMode;
+    xf86Msg(X_INFO, TSENG_NAME ": driver for TsengLabs ET4000W32p, ET6000 and"
+            " ET6100 chips.\n");
 }
 
 /* unlock ET4000 using KEY register */
@@ -453,64 +384,6 @@ TsengLock(void)
     outb(iobase + 8, 0x00);
     outb(0x3D8, 0x29);
     outb(0x3BF, 0x01);
-}
-
-/*
- * ET4000AutoDetect -- Old-style autodetection code (by register probing)
- *
- * This code is only called when the chipset is not given beforehand,
- * and if the PCI code hasn't detected one previously.
- */
-#if 1
-static Bool
-ET4000MinimalProbe(void)
-{
-    unsigned char origVal, newVal;
-    int iobase;
-
-    PDEBUG("	ET4000MinimalProbe\n");
-    /*
-     * Note, the vgaHW module cannot be used here, but there are
-     * some macros in vgaHW.h that can be used.
-     */
-    iobase = VGAHW_GET_IOBASE();
-
-    /*
-     * Check first that there is a ATC[16] register and then look at
-     * CRTC[33]. If both are R/W correctly it's a ET4000 !
-     */
-    (void) inb(iobase + 0x0A);
-    TsengUnlock();		       /* only ATC 0x16 is protected by KEY */
-    outb(0x3C0, 0x16 | 0x20);
-    origVal = inb(0x3C1);
-    outb(0x3C0, origVal ^ 0x10);
-    outb(0x3C0, 0x16 | 0x20);
-    newVal = inb(0x3C1);
-    outb(0x3C0, origVal);
-/*    TsengLock();    FIXME: RESTORE OLD CONTENTS INSTEAD ! */
-    if (newVal != (origVal ^ 0x10)) {
-	return (FALSE);
-    }
-    outb(iobase + 0x04, 0x33);
-    origVal = inb(iobase + 0x05);
-    outb(iobase + 0x05, origVal ^ 0x0F);
-    newVal = inb(iobase + 0x05);
-    outb(iobase + 0x05, origVal);
-    if (newVal != (origVal ^ 0x0F)) {
-	return (FALSE);
-    }
-    return TRUE;
-}
-#endif
-
-static int
-TsengFindIsaDevice(GDevPtr dev)
-{
-    /* XXX Need to implement this */
-    if (ET4000MinimalProbe())
-	return TYPE_TSENG;
-
-    return -1;
 }
 
 static Bool
@@ -546,61 +419,48 @@ TsengProbe(DriverPtr drv, int flags)
 	return FALSE;
     }
 
+    /* PCI only driver now. */
+    if (!xf86GetPciVideoInfo())
+        return FALSE;
+
     /* XXX maybe this can go some time soon */
     /*
      * for the Tseng server, there can only be one matching
      * device section. So issue a warning if more than one show up.
      * Multiple Tseng cards in the same machine are not possible.
      */
-    /*
-     * If this is a PCI card, "probing" just amounts to checking the PCI
-     * data that the server has already collected.  If there is none,
-     * check for non-PCI boards.
-     *
-     * The provided xf86MatchPciInstances() helper takes care of
-     * the details.
-     */
-    numUsed = 0;
-    if (xf86GetPciVideoInfo() != NULL) {
-	numUsed = xf86MatchPciInstances(TSENG_NAME, PCI_VENDOR_TSENG,
-					TsengChipsets, TsengPciChipsets, 
-					devSections,numDevSections, drv,
-					&usedChips);
-	if (numUsed > 0) {
-	    if (flags & PROBE_DETECT)
-		foundScreen = TRUE;
-	    else for (i = 0; i < numUsed; i++) {
-		/* Allocate a ScrnInfoRec  */
-		ScrnInfoPtr pScrn = NULL;
-		if ((pScrn = xf86ConfigPciEntity(pScrn,0,usedChips[i],
-						       TsengPciChipsets,NULL,
-						       NULL,NULL,NULL,NULL))) {
-		    TsengAssignFPtr(pScrn);
-		    foundScreen = TRUE;
-		}
-	    }
-	    xfree(usedChips);
-	}
+    numUsed = xf86MatchPciInstances(TSENG_NAME, PCI_VENDOR_TSENG,
+                                    TsengChipsets, TsengPciChipsets, 
+                                    devSections,numDevSections, drv,
+                                    &usedChips);
+    if (numUsed > 0) {
+        if (flags & PROBE_DETECT)
+            foundScreen = TRUE;
+        else for (i = 0; i < numUsed; i++) {
+            /* Allocate a ScrnInfoRec  */
+            ScrnInfoPtr pScrn = NULL;
+            if ((pScrn = xf86ConfigPciEntity(pScrn,0,usedChips[i],
+                                             TsengPciChipsets,NULL,
+                                             NULL,NULL,NULL,NULL))) {
+                pScrn->driverVersion = TSENG_VERSION;
+                pScrn->driverName = TSENG_DRIVER_NAME;
+                pScrn->name = TSENG_NAME;
+                pScrn->Probe = TsengProbe;
+                pScrn->PreInit = TsengPreInit;
+                pScrn->ScreenInit = TsengScreenInit;
+                pScrn->SwitchMode = TsengSwitchMode;
+                pScrn->AdjustFrame = TsengAdjustFrame;
+                pScrn->EnterVT = TsengEnterVT;
+                pScrn->LeaveVT = TsengLeaveVT;
+                pScrn->FreeScreen = TsengFreeScreen;
+                pScrn->ValidMode = TsengValidMode;
+
+                foundScreen = TRUE;
+            }
+        }
+        xfree(usedChips);
     }
     
-    /* Check for non-PCI cards */
-    numUsed = xf86MatchIsaInstances(TSENG_NAME, TsengChipsets,
-			TsengIsaChipsets,drv, TsengFindIsaDevice, devSections,
-			numDevSections, &usedChips);
-    if (numUsed > 0)  {
-	if (flags & PROBE_DETECT)
-	    foundScreen = TRUE;
-	else for (i = 0; i < numUsed; i++) {
-		ScrnInfoPtr pScrn = NULL;
-		if ((pScrn = xf86ConfigIsaEntity(pScrn,0,usedChips[i],
-						       TsengIsaChipsets,NULL,
-						       NULL,NULL,NULL,NULL))) {
-		    TsengAssignFPtr(pScrn);
-		    foundScreen = TRUE;
-		}
-	}
-	xfree(usedChips);
-    }
     xfree(devSections);
     return foundScreen;
 }
@@ -613,85 +473,57 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
     TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengPreInitPCI\n");
-    /*
-     * * Set the ChipType and ChipRev, allowing config file entries to
-     * * override.
-     */
-    if (pTseng->pEnt->device->chipset && *pTseng->pEnt->device->chipset) {
-	/* chipset given as a string in the config file */
-	pScrn->chipset = pTseng->pEnt->device->chipset;
-	pTseng->ChipType =
-	    (t_tseng_type)xf86StringToToken(TsengChipsets, pScrn->chipset);
-	/* FIXME: still need to probe for W32p revision here */
-	from = X_CONFIG;
-    } else if (pTseng->pEnt->device->chipID >= 0) {
-	/* chipset given as a PCI ID in the config file */
-	if (!TsengPCI2Type(pScrn, pTseng->pEnt->device->chipID))
-	    return FALSE;
-	pScrn->chipset = (char *)xf86TokenToString(TsengChipsets, pTseng->ChipType);
-	from = X_CONFIG;
-	xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "ChipID override: 0x%04X\n",
-	    pTseng->ChipType);
-    } else {
-	/* probe for chipset type */
-	from = X_PROBED;
-	if (!TsengPCI2Type(pScrn, pTseng->PciInfo->chipType))
-	    return FALSE;
-	pScrn->chipset = (char *)xf86TokenToString(TsengChipsets, pTseng->ChipType);
+
+    /* This is PCI, we should be able to trust it */
+
+    /* Set up ChipType, ChipRev and pScrn->chipset.
+     * This last one is usually not done manually, but
+     * it's for informative use only anyway. */
+    switch (pTseng->PciInfo->chipType) {
+    case PCI_CHIP_ET4000_W32P_A:
+	pTseng->ChipType = ET4000;
+	pTseng->ChipRev = REV_A;
+        pScrn->chipset = "ET4000/W32P (rev A)";
+	break;
+    case PCI_CHIP_ET4000_W32P_B:
+	pTseng->ChipType = ET4000;
+	pTseng->ChipRev = REV_B;
+	pScrn->chipset = "ET4000/W32P (rev B)";
+        break;
+    case PCI_CHIP_ET4000_W32P_C:
+	pTseng->ChipType = ET4000;
+	pTseng->ChipRev = REV_C;
+        pScrn->chipset = "ET4000/W32P (rev C)";
+	break;
+    case PCI_CHIP_ET4000_W32P_D:
+	pTseng->ChipType = ET4000;
+	pTseng->ChipRev = REV_D;
+        pScrn->chipset = "ET4000/W32P (rev D)";
+	break;
+    case PCI_CHIP_ET6000:
+	pTseng->ChipType = ET6000;
+
+        if (pTseng->PciInfo->chipRev < 0x70) {
+            pScrn->chipset = "ET6000";
+            pTseng->ChipRev = REV_ET6000;
+        } else {
+            pScrn->chipset = "ET6100";
+            pTseng->ChipRev = REV_ET6100;
+        }
+	break;
+    default:
+	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Unknown Tseng PCI ID: %X\n",
+                   pTseng->PciInfo->chipType);
+	return FALSE;
     }
 
-    if (pTseng->pEnt->device->chipRev >= 0) {
-	pTseng->ChipRev = pTseng->pEnt->device->chipRev;
-	xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "ChipRev override: %d\n",
-	    pTseng->ChipRev);
-	if ((pTseng->ChipType == TYPE_ET6000) && (pTseng->ChipRev >= ET6100REVID))
-	    pTseng->ChipType = TYPE_ET6100;
-    } else {
-	t_tseng_type dum_chiptype;
-	t_w32_revid rev;
-	if (Is_ET6K) {
-	    pTseng->ChipRev = pTseng->PciInfo->chipRev;
-	} else {
-	    /*
-	     * on W32p cards, the PCI ChipRev field is always 0 (it is not
-	     * implemented).  We will use the ChipRev field to distinguish
-	     * between revisions A through D, so we set it up with the
-	     * standard register-probing "Detailed Probe" instead.
-	     */
-	    ET4000DetailedProbe(&dum_chiptype, &rev);
-	    pTseng->ChipRev = rev;
-	}
-    }
-
-    if (Is_ET6K) {
-	xf86DrvMsg(pScrn->scrnIndex, from, "Chipset: \"%s\"\n", pScrn->chipset);
-    } else {
-	char ch_rev;
-	switch (pTseng->ChipRev) {
-	case W32REVID_A:
-	    ch_rev = 'A';
-	    break;
-	case W32REVID_B:
-	    ch_rev = 'B';
-	    break;
-	case W32REVID_C:
-	    ch_rev = 'C';
-	    break;
-	case W32REVID_D:
-	    ch_rev = 'D';
-	    break;
-	default:
-	    ch_rev = 'X';
-	}
-	xf86DrvMsg(pScrn->scrnIndex, from, "Chipset: \"%s\" (rev %c)\n",
-	    pScrn->chipset, ch_rev);
-    }
+    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Chipset: \"%s\"\n", pScrn->chipset);
 
     pTseng->PciTag = pciTag(pTseng->PciInfo->bus, pTseng->PciInfo->device,
 	pTseng->PciInfo->func);
 
     /* only the ET6000 implements a PCI IO address */
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	if (pTseng->pEnt->device->IOBase != 0) {
 	    pTseng->IOAddress = pTseng->pEnt->device->IOBase;
 	    from = X_CONFIG;
@@ -710,223 +542,6 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
     }
 
     pTseng->LinFbAddressMask = 0xFF000000;
-
-    return TRUE;
-}
-
-/*
- * This is a more detailed probe. We already know it's a Tseng chip from
- * TsengPreInit() and ET4000MinimalProbe().
- */
-
-static Bool
-ET4000DetailedProbe(t_tseng_type * chiptype, t_w32_revid * rev)
-{
-    unsigned char temp, origVal, newVal;
-
-    PDEBUG("	ET4000DetailedProbe\n");
-
-    /*
-     * We know it's an ET4000, now check for an ET4000/W32.
-     * Test for writability of 0x3cb.
-     */
-
-    origVal = inb(0x3cb);
-    outb(0x3cb, 0x33);		       /* Arbitrary value */
-    newVal = inb(0x3cb);
-    outb(0x3cb, origVal);
-    if (newVal != 0x33) {	       /* not a W32; so it's a standard ET4000 */
-	*chiptype = TYPE_ET4000;
-	*rev = TSENGNOREV;
-	return TRUE;
-    }
-    /* We have an ET4000/W32. Now determine the type. */
-    outb(0x217a, 0xec);
-    temp = inb(0x217b) >> 4;
-    switch (temp) {
-    case 0:			       /* ET4000/W32 */
-	*chiptype = TYPE_ET4000W32;
-	break;
-    case 1:			       /* ET4000/W32i */
-	*chiptype = TYPE_ET4000W32I;
-	*rev = W32REVID_A;
-	break;
-    case 3:			       /* ET4000/W32i rev b */
-	*chiptype = TYPE_ET4000W32I;
-	*rev = W32REVID_B;
-	break;
-    case 11:			       /* ET4000/W32i rev c */
-	*chiptype = TYPE_ET4000W32I;
-	*rev = W32REVID_C;
-	break;
-    case 2:			       /* ET4000/W32p rev a */
-	*chiptype = TYPE_ET4000W32P;
-	*rev = W32REVID_A;
-	break;
-    case 5:			       /* ET4000/W32p rev b */
-	*chiptype = TYPE_ET4000W32P;
-	*rev = W32REVID_B;
-	break;
-    case 6:			       /* ET4000/W32p rev d */
-	*chiptype = TYPE_ET4000W32P;
-	*rev = W32REVID_D;
-	break;
-    case 7:			       /* ET4000/W32p rev c */
-	*chiptype = TYPE_ET4000W32P;
-	*rev = W32REVID_C;
-	break;
-    default:
-	return (FALSE);
-    }
-
-    return (TRUE);
-}
-
-/*
- * TsengFindBusType --
- *      determine bus interface type
- *      (also determines Lin Mem address mask, because that depends on bustype)
- *
- * We don't need to bother with PCI buses here: TsengPreInitPCI() took care
- * of that. This code isn't called if it's a PCI bus anyway.
- */
-
-static void
-TsengFindNonPciBusType(ScrnInfoPtr pScrn)
-{
-    unsigned char bus;
-    TsengPtr pTseng = TsengPTR(pScrn);
-
-    PDEBUG("	TsengFindNonPciBusType\n");
-    pTseng->Bustype = T_BUS_ISA;
-    pTseng->Linmem_1meg = FALSE;
-    pTseng->LinFbAddressMask = 0;
-
-    switch (pTseng->ChipType) {
-    case TYPE_ET4000:
-	break;
-    case TYPE_ET4000W32:
-    case TYPE_ET4000W32I:
-	/*
-	 * Notation: SMx = bit x of Segment Map Comparator (CRTC index 0x30)
-	 *
-	 * We assume the driver code disables the image port (which it does)
-	 *
-	 * ISA:      [ A23==SEGE, A22, A21, A20 ] ==      [ SM1, SM0, 0, 0 ]
-	 * MCA: [ A24, A23, A22, A21, A20 ] == [ SM2, SM1, SM0, 0, 0 ]
-	 * VLB: [ /A26, /A25, /A24, A23, A22, A21, A20 ] ==   ("/" means inverted!)
-	 *       [ SM4,  SM3,  SM2, SM1, SM0, 0  , 0   ]
-	 */
-	outb(0x217A, 0xEF);
-	bus = inb(0x217B) & 0x60;      /* Determine bus type */
-	switch (bus) {
-	case 0x40:
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32/W32i bus type: MCA\n");
-	    pTseng->Bustype = T_BUS_MCA;
-	    pTseng->LinFbAddressMask = 0x01C00000;	/* MADE24, A23 and A22 are decoded */
-	    break;
-	case 0x60:
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32/W32i bus type: Local Bus\n");
-	    pTseng->Bustype = T_BUS_VLB;
-	    pTseng->LinFbAddressMask = 0x07C00000;	/* A26..A22 are decoded */
-	    break;
-	case 0x00:
-	case 0x20:
-	default:
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32/W32i bus type (0x%02X): ISA\n", bus);
-	    pTseng->Bustype = T_BUS_ISA;
-	    pTseng->LinFbAddressMask = 0x00C00000;	/* SEGE and A22 are decoded */
-	    break;
-	}
-	break;
-    case TYPE_ET4000W32P:
-	outb(0x217A, 0xEF);
-	bus = inb(0x217B) >> 3;	       /* Determine bus type */
-	switch (bus) {
-	case 0x1C:		       /* PCI case already handled in TsengPreInitPCI() */
-	    pTseng->Bustype = T_BUS_VLB;
-	    pTseng->LinFbAddressMask = 0x3FC00000;	/* A29..A22 */
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32p bus type: Local Buffered Bus\n");
-	    pTseng->Linmem_1meg = TRUE;		/* IMA bus support allows for only 1M linear memory */
-	    break;
-	case 0x13:
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32p bus type: Local Bus (option 1a)\n");
-	    pTseng->Bustype = T_BUS_VLB;
-	    if (pTseng->ChipRev == W32REVID_A)
-		pTseng->LinFbAddressMask = 0x07C00000;
-	    else
-		pTseng->LinFbAddressMask = 0x1FC00000;	/* SEGI,A27..A22 */
-	    break;
-	case 0x11:
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32p bus type: Local Bus (option 1b)\n");
-	    pTseng->Bustype = T_BUS_VLB;
-	    pTseng->LinFbAddressMask = 0x00C00000;	/* SEGI,A22 */
-	    pTseng->Linmem_1meg = TRUE;		/* IMA bus support allows for only 1M linear memory */
-	    break;
-	case 0x08:
-	case 0x0B:
-	default:
-	    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected W32p bus type: Local Bus (option 2)\n");
-	    pTseng->Bustype = T_BUS_VLB;
-	    pTseng->LinFbAddressMask = 0x3FC00000;	/* A29..A22 */
-	    break;
-	}
-	if (Is_W32p_cd && (pTseng->LinFbAddressMask == 0x3FC00000))
-	    pTseng->LinFbAddressMask |= 0xC0000000;	/* A31,A30 decoded from PCI config space */
-	break;
-    case TYPE_ET6000:
-    case TYPE_ET6100:
-	pTseng->Bustype = T_BUS_PCI;
-	pTseng->LinFbAddressMask = 0xFF000000;
-	break;
-	case TYPE_TSENG: /* generic */
-	    break;
-    }
-}
-
-/* The TsengPreInit() part for non-PCI buses */
-static Bool
-TsengPreInitNoPCI(ScrnInfoPtr pScrn)
-{
-    MessageType from;
-    t_w32_revid rev = TSENGNOREV;
-    TsengPtr pTseng = TsengPTR(pScrn);
-
-    PDEBUG("	TsengPreInitNoPCI\n");
-    /*
-     * Set the ChipType and ChipRev, allowing config file entries to
-     * override.
-     */
-    if (pTseng->pEnt->device->chipset && *pTseng->pEnt->device->chipset) {
-	/* chipset given as a string in the config file */
-	pScrn->chipset = pTseng->pEnt->device->chipset;
-	pTseng->ChipType =
-	    (t_tseng_type)xf86StringToToken(TsengChipsets, pScrn->chipset);
-	from = X_CONFIG;
-    } else if (pTseng->pEnt->device->chipID > 0) {
-	/* chipset given as a PCI ID in the config file */
-	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "ChipID override only possible for PCI cards\n");
-	return FALSE;
-    } else {
-	from = X_PROBED;
-	if (!ET4000DetailedProbe(&(pTseng->ChipType), &rev)) {
-	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		"Unknown Tseng chip detected. Try chipset override.\n");
-	    return FALSE;
-	}
-	pScrn->chipset = (char *)xf86TokenToString(TsengChipsets, pTseng->ChipType);
-    }
-    if (pTseng->pEnt->device->chipRev >= 0) {
-	pTseng->ChipRev = pTseng->pEnt->device->chipRev;
-	xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "ChipRev override: %d\n",
-	    pTseng->ChipRev);
-    } else {
-	pTseng->ChipRev = rev;
-    }
-
-    xf86DrvMsg(pScrn->scrnIndex, from, "Chipset: \"%s\"\n", pScrn->chipset);
-
-    TsengFindNonPciBusType(pScrn);
 
     return TRUE;
 }
@@ -1118,13 +733,13 @@ TsengLimitMem(ScrnInfoPtr pScrn, int ram)
 			      "this VGA board/bus configuration");
     }
     if (pTseng->UseAccel && pTseng->UseLinMem) {
-	if (Is_W32_any) {
+	if (pTseng->ChipType == ET4000) {
 	    /* <= W32p_ab :
 	     *   2 MB direct access + 2*512kb via apertures MBP0 and MBP1
 	     * == W32p_cd :
 	     *   2*1MB via apertures MBP0 and MBP1
 	     */
-	    if (Is_W32p_cd)
+	    if ((pTseng->ChipRev == REV_C) || (pTseng->ChipRev == REV_D))
 		ram = TsengDoMemLimit(pScrn, ram, 2048,
 				      "in linear + accelerated mode "
 				      "on W32p rev c and d");
@@ -1140,8 +755,7 @@ TsengLimitMem(ScrnInfoPtr pScrn, int ram)
 	    ram = TsengDoMemLimit(pScrn, ram, 4096 - 516,
 				  "in linear + accelerated mode "
 				  "on W32/W32i/W32p");
-	}
-	if (Is_ET6K) {
+	} else {
 	    /*
 	     * upper 8kb used for externally mapped and
 	     * memory mapped registers
@@ -1170,7 +784,7 @@ TsengDetectMem(ScrnInfoPtr pScrn)
     TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengDetectMem\n");
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	ramtype = inb(0x3C2) & 0x03;
 	switch (ramtype) {
 	case 0x03:		       /* MDRAM */
@@ -1197,7 +811,7 @@ TsengDetectMem(ScrnInfoPtr pScrn)
 		ramtype);
 	    ram = 1024;
 	}
-    } else {			       /* pre-ET6000 devices */
+    } else {
 	int iobase = VGAHWPTR(pScrn)->IOBase;
 
 	outb(iobase + 0x04, 0x37);
@@ -1209,18 +823,16 @@ TsengDetectMem(ScrnInfoPtr pScrn)
 	    ram <<= 1;
 
 	/* Check for interleaving on W32i/p. */
-	if (Is_W32i || Is_W32p) {
-	    outb(iobase + 0x04, 0x32);
-	    config = inb(iobase + 0x05);
-	    if (config & 0x80) {
-		ram <<= 1;
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		    "Video memory type: Interleaved DRAM.\n");
-	    } else {
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		    "Video memory type: Standard DRAM.\n");
-	    }
-	}
+        outb(iobase + 0x04, 0x32);
+        config = inb(iobase + 0x05);
+        if (config & 0x80) {
+            ram <<= 1;
+            xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                       "Video memory type: Interleaved DRAM.\n");
+        } else {
+            xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                       "Video memory type: Standard DRAM.\n");
+        }
     }
     return ram;
 }
@@ -1290,7 +902,7 @@ TsengProcessOptions(ScrnInfoPtr pScrn)
 	from = X_CONFIG;
 	pTseng->HWCursor = FALSE;
     }
-    if (pTseng->HWCursor && !Is_ET6K) {
+    if ((pTseng->ChipType == ET4000) && pTseng->HWCursor) {
 	xf86DrvMsg(pScrn->scrnIndex, from,
 		"Hardware Cursor not supported on this chipset\n");
 	pTseng->HWCursor = FALSE;
@@ -1300,8 +912,7 @@ TsengProcessOptions(ScrnInfoPtr pScrn)
 	pTseng->HWCursor ? "HW" : "SW");
 
     if (pScrn->bitsPerPixel >= 8) {
-        if (pTseng->ChipType != TYPE_ET4000)
-	    pTseng->UseAccel = TRUE;
+        pTseng->UseAccel = TRUE;
 	if (xf86ReturnOptValBool(pTseng->Options, OPTION_NOACCEL, FALSE)) {
 	    pTseng->UseAccel = FALSE;
 	    xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Acceleration disabled\n");
@@ -1336,11 +947,7 @@ TsengProcessOptions(ScrnInfoPtr pScrn)
     if (xf86GetOptValBool(pTseng->Options, OPTION_LINEAR, &pTseng->UseLinMem)) {
 	/* check if linear mode is allowed */
 	if (pTseng->UseLinMem) {
-	    if (!CHIP_SUPPORTS_LINEAR) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Linear memory not supported on chipset \"%s\".\n",
-		    pScrn->chipset);
-		pTseng->UseLinMem = FALSE;
-	    } else if (!xf86LinearVidMem()) {
+            if (!xf86LinearVidMem()) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		    "This operating system does not support a linear framebuffer.\n");
 		pTseng->UseLinMem = FALSE;
@@ -1423,88 +1030,26 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
 	}
     } else {
 	from = X_PROBED;
-	if (pTseng->PciTag) {
-	    /*
-	     * base0 is the framebuffer and base1 is the PCI IO space.
-	     */
-	    if ((pTseng->PciInfo->memBase[0]) != 0) {
-		pTseng->LinFbAddress = pTseng->PciInfo->memBase[0];
-	    } else {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "No valid Framebuffer address in PCI config space;\n");
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "    Falling back to banked mode.\n");
-		pTseng->UseLinMem = FALSE;
-		return TRUE;
-	    }
-	    if (xf86RegisterResources(pTseng->pEnt->index,NULL,ResNone)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "    Cannot register linear memory."
-			   " Using banked mode instead.\n");
-		pTseng->UseLinMem = FALSE;
-		return TRUE;
-	    }
-	} else {		       /* non-PCI boards */
-	    /* W32p cards can give us their Lin. memory address through the PCI
-	     * configuration. For W32i, this is not possible (VL-bus, MCA or ISA). W32i
-	     * cards have three extra external "address" lines, SEG2..SEG0 which _can_
-	     * be connected to any set of address lines in addition to the already
-	     * connected A23..A0. SEG2..SEG0 are either for three extra address lines
-	     * or to connect an external address decoder (mostly an 74F27). It is NOT
-	     * possible to know how SEG2..SEG0 are connected. We _assume_ they are
-	     * connected to A26..A24 (most likely case). This means linear memory can
-	     * be decoded into any 4MB block in the address range 0..128MB.
-	     *
-	     * For non-PCI cards (especially VLB), most motherboards don't decode all
-	     * 32 address bits. The weird default memory base below will always end up
-	     * at the end of the decoded address space -- independent of the number of
-	     * address bits that are decoded.
-	     */
-#define DEFAULT_LIN_MEMBASE ( (256 + 128 + 64 + 32 + 16 + 8 + 4) * 1024*1024 )
-#define DEFAULT_LIN_MEMBASE_PCI (DEFAULT_LIN_MEMBASE & 0xFF000000)
-
-	    switch (pTseng->ChipType) {
-	    case TYPE_ET4000W32:
-	    case TYPE_ET4000W32I:
-	    case TYPE_ET4000W32P:     /* A31,A30 are decoded as 00 (=always mapped below 512 MB) */
-		pTseng->LinFbAddress = DEFAULT_LIN_MEMBASE;
-		if (pTseng->LinFbAddress > pTseng->LinFbAddressMask)	/* ... except if we can't decode that much */
-		    pTseng->LinFbAddress = pTseng->LinFbAddressMask - 4 * 1024 * 1024;	/* top of decodable memory */
-		break;
-	    default:
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "TsengNonPciLinMem(): Internal error. This should not happen: Please check "__VENDORDWEBSUPPORT__"\n");
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "    Falling back to banked mode.\n");
-		pTseng->UseLinMem = FALSE;
-		return TRUE;
-	    }
-	    pTseng->LinFbAddress &= pTseng->LinFbAddressMask;
-
-	    /* One final check for a valid MemBase */
-	    if (pTseng->LinFbAddress < 4096 * 1024) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "Invalid MemBase for linear mode:\n");
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "    please define a non-zero MemBase in XF86Config.\n");
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "    See README.tseng or tseng.sgml for more information.\n");
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "    Using banked mode instead.\n");
-		pTseng->UseLinMem = FALSE;
-		return TRUE;
-	    }
-	    range[0].type |= ResBios;
-	    range[0].rBegin = pTseng->LinFbAddress;
-	    range[0].rEnd = pTseng->LinFbAddress + 16 * 1024 * 1024;
-	    if (xf86RegisterResources(pTseng->pEnt->index,range,ResNone)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "    Cannot register linear memory."
-			   " Using banked mode instead.\n");
-		pTseng->UseLinMem = FALSE;
-		return TRUE;
-	    }
-	}
+        /*
+         * base0 is the framebuffer and base1 is the PCI IO space.
+         */
+        if ((pTseng->PciInfo->memBase[0]) != 0) {
+            pTseng->LinFbAddress = pTseng->PciInfo->memBase[0];
+        } else {
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                       "No valid Framebuffer address in PCI config space;\n");
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                       "    Falling back to banked mode.\n");
+            pTseng->UseLinMem = FALSE;
+            return TRUE;
+        }
+        if (xf86RegisterResources(pTseng->pEnt->index,NULL,ResNone)) {
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                       "    Cannot register linear memory."
+                       " Using banked mode instead.\n");
+            pTseng->UseLinMem = FALSE;
+            return TRUE;
+        }
     }
 
     /* The W32 linear map address space is always 4Mb (mainly because the
@@ -1517,7 +1062,7 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
      * though: if another board is mapped on top of the remaining part of
      * the 16M... Boom!
      */
-    if (Is_ET6K)
+    if (pTseng->ChipType == ET6000)
 	pTseng->FbMapSize = 16384 * 1024;
     else
 	pTseng->FbMapSize = 4096 * 1024;
@@ -1596,20 +1141,10 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 
     TsengUnlock();
 
-    /*
-     * Find the bus slot for this screen (PCI or other). This also finds the
-     * exact chipset type.
-     */
-    /* This driver can handle ISA and PCI buses */
-    if (pTseng->pEnt->location.type == BUS_PCI) {
-	pTseng->PciInfo = xf86GetPciInfoForEntity(pTseng->pEnt->index);
-	if (!TsengPreInitPCI(pScrn)) {
-	    TsengFreeRec(pScrn);
-	    return FALSE;
-	}
-    } else if (!TsengPreInitNoPCI(pScrn)) {
-	TsengFreeRec(pScrn);
-	return FALSE;
+    pTseng->PciInfo = xf86GetPciInfoForEntity(pTseng->pEnt->index);
+    if (!TsengPreInitPCI(pScrn)) {
+        TsengFreeRec(pScrn);
+        return FALSE;
     }
 
     /*
@@ -1784,7 +1319,7 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
     
     /* hibit processing (TsengProcessOptions() must have been called first) */
     pTseng->save_divide = 0x40;	       /* default */
-    if (!Is_ET6K) {
+    if (pTseng->ChipType == ET4000) {
 	if (!TsengProcessHibit(pScrn))
 	    return FALSE;
     }
@@ -2133,7 +1668,7 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
      */
 
     if (!pTseng->UseLinMem) {
-	if (!Is_stdET4K && (pScrn->videoRam > 1024)) {
+	if (pScrn->videoRam > 1024) {
 	    pTseng->BankInfo.SetSourceBank = ET4000W32SetRead;
 	    pTseng->BankInfo.SetDestinationBank = ET4000W32SetWrite;
 	    pTseng->BankInfo.SetSourceAndDestinationBanks = ET4000W32SetReadWrite;
@@ -2192,11 +1727,11 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* Support for DPMS, the ET4000W32Pc and newer uses a different and
      * simpler method than the older cards.
      */
-    if (Is_W32p_cd || Is_ET6K) {
+    if ((pTseng->ChipType == ET4000) &&
+        ((pTseng->ChipRev == REV_A) || (pTseng->ChipRev == REV_B)))
+        xf86DPMSInit(pScreen, (DPMSSetProcPtr)TsengHVSyncDPMSSet, 0);
+    else
 	xf86DPMSInit(pScreen, (DPMSSetProcPtr)TsengCrtcDPMSSet, 0);
-    } else {
-	xf86DPMSInit(pScreen, (DPMSSetProcPtr)TsengHVSyncDPMSSet, 0);
-    }
 
     pTseng->CloseScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = TsengCloseScreen;
@@ -2296,7 +1831,7 @@ TsengSaveScreen(ScreenPtr pScreen, int mode)
 
     unblank = xf86IsUnblank(mode);
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	return vgaHWSaveScreen(pScreen, unblank);
     } else {
        if (unblank)
@@ -2471,7 +2006,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 
     if (pScrn->bitsPerPixel < 8) {
 	/* Don't ask me why this is needed on the ET6000 and not on the others */
-	if (Is_ET6K)
+	if (pTseng->ChipType == ET6000)
 	    hwp->ModeReg.Sequencer[1] |= 0x04;
 	row_offset = hwp->ModeReg.CRTC[19];
     } else {
@@ -2498,7 +2033,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	new->ExtATC = 0x80;
 
     if (pScrn->bitsPerPixel >= 8) {
-	if (pTseng->FastDram && !Is_ET6K) {
+	if ((pTseng->ChipType == ET4000) && pTseng->FastDram) {
 	    /*
 	     *  make sure Trsp is no more than 75ns
 	     *            Tcsw is 25ns
@@ -2526,7 +2061,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      * when something is being drawn. This only happens WAY beyond 80 MHz 
      * (those 135 MHz ramdac's...)
      */
-    if (Is_W32i || Is_W32p) {
+    if (pTseng->ChipType == ET4000) {
 	if (!pTseng->SlowDram)
 	    new->CR34 |= 0x80;
 	if ((mode->Clock * pTseng->Bytesperpixel) > 80000)
@@ -2540,8 +2075,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	    else
 		new->CR32 &= 0x7F;
 	}
-    }
-    if (Is_W32p) {
+
 	/*
 	 * CR34 bit 4 controls the PCI Burst option
 	 */
@@ -2595,7 +2129,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	new->pll.r_idx = 0;
 	new->pll.w_idx = 0;
 #endif
-    } else if (Is_ET6K) {
+    } else if (pTseng->ChipType == ET6000) {
 	/* setting min_n2 to "1" will ensure a more stable clock ("0" is allowed though) */
 	TsengcommonCalcClock(mode->SynthClock, 1, 1, 31, 1, 3, 100000,
 	    pTseng->max_vco_freq,
@@ -2603,11 +2137,11 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	/* above 130MB/sec, we enable the "LOW FIFO threshold" */
 	if (mode->Clock * pTseng->Bytesperpixel > 130000) {
 	    new->ET6K_41 |= 0x10;
-	    if (Is_ET6100)
+	    if (pTseng->ChipRev == REV_ET6100)
 		new->ET6K_46 |= 0x04;
 	} else {
 	    new->ET6K_41 &= ~0x10;
-	    if (Is_ET6100)
+	    if (pTseng->ChipRev == REV_ET6100)
 		new->ET6K_46 &= ~0x04;
 	}
 
@@ -2666,7 +2200,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      * linear mode handling
      */
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	if (pTseng->UseLinMem) {
 	    new->ET6K_13 = pTseng->LinFbAddress >> 24;
 	    new->ET6K_40 |= 0x09;
@@ -2676,18 +2210,12 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     } else {			       /* et4000 style linear memory */
 	if (pTseng->UseLinMem) {
 	    new->CR36 |= 0x10;
-	    if (Is_W32p || Is_ET6K)
-		new->CR30 = (pTseng->LinFbAddress >> 22) & 0xFF;
-	    else
-		new->CR30 = ((pTseng->LinFbAddress >> 22) & 0x1F) ^ 0x1c;	/* invert bits 4..2 */
+            new->CR30 = (pTseng->LinFbAddress >> 22) & 0xFF;
 	    hwp->ModeReg.Graphics[6] &= ~0x0C;
 	    new->ExtIMACtrl &= ~0x01;  /* disable IMA port (to get >1MB lin mem) */
 	} else {
 	    new->CR36 &= ~0x10;
-	    if (pTseng->ChipType < TYPE_ET4000W32P)
-		new->CR30 = 0x1C;	/* default value */
-	    else
-		new->CR30 = 0x00;
+            new->CR30 = 0x00;
 	}
     }
 
@@ -2716,7 +2244,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      */
 
     if (pTseng->UseAccel) {
-	if (Is_ET6K) {
+	if (pTseng->ChipType == ET6000) {
 	    if (pTseng->UseLinMem)
 		new->ET6K_40 |= 0x02;	/* MMU can't be used here (causes system hang...) */
 	    else
@@ -2822,7 +2350,8 @@ TsengSave(ScrnInfoPtr pScrn)
     outb(iobase + 4, 0x34);
     temp = inb(iobase + 5);
     tsengReg->CR34 = temp;
-    if (Is_stdET4K || Is_W32_W32i || Is_W32p_ab) {
+    if ((pTseng->ChipType == ET4000) &&
+        ((pTseng->ChipRev == REV_A) || (pTseng->ChipRev == REV_B))) {
 #ifdef OLD_CODE
 	outb(iobase + 5, temp & 0x1F);
 #else
@@ -2833,10 +2362,10 @@ TsengSave(ScrnInfoPtr pScrn)
 
     saveseg1 = inb(0x3CD);
     outb(0x3CD, 0x00);		       /* segment select 1 */
-    if (!Is_stdET4K) {
-	saveseg2 = inb(0x3CB);
-	outb(0x3CB, 0x00);	       /* segment select 2 */
-    }
+
+    saveseg2 = inb(0x3CB);
+    outb(0x3CB, 0x00);	       /* segment select 2 */
+
     tsengReg->ExtSegSel[0] = saveseg1;
     tsengReg->ExtSegSel[1] = saveseg2;
 
@@ -2844,15 +2373,14 @@ TsengSave(ScrnInfoPtr pScrn)
     tsengReg->CR33 = inb(iobase + 5);
     outb(iobase + 4, 0x35);
     tsengReg->CR35 = inb(iobase + 5);
-    if (Is_W32_any) {
+    if (pTseng->ChipType == ET4000) {
 	outb(iobase + 4, 0x36);
 	tsengReg->CR36 = inb(iobase + 5);
 	outb(iobase + 4, 0x37);
 	tsengReg->CR37 = inb(iobase + 5);
 	outb(0x217a, 0xF7);
 	tsengReg->ExtIMACtrl = inb(0x217b);
-    }
-    if (!Is_ET6K) {
+
 	outb(iobase + 4, 0x32);
 	tsengReg->CR32 = inb(iobase + 5);
     }
@@ -2938,7 +2466,7 @@ TsengSave(ScrnInfoPtr pScrn)
 	    outb(iobase + 5, temp);
 	}
     }
-    if (ET6000_programmable_clock) {
+    if (pTseng->ChipType == ET6000) {
 	/* Save ET6000 CLKDAC PLL registers */
 	temp = inb(pTseng->IOAddress + 0x67);	/* remember old CLKDAC index register pointer */
 	outb(pTseng->IOAddress + 0x67, 2);
@@ -2954,7 +2482,7 @@ TsengSave(ScrnInfoPtr pScrn)
     if (DAC_IS_ATT49x)
 	tsengReg->ATTdac_cmd = tseng_getdaccomm();
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	tsengReg->ET6K_13 = inb(pTseng->IOAddress + 0x13);
 	tsengReg->ET6K_40 = inb(pTseng->IOAddress + 0x40);
 	tsengReg->ET6K_58 = inb(pTseng->IOAddress + 0x58);
@@ -2990,8 +2518,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
     TsengProtect(pScrn, TRUE);
 
     outb(0x3CD, 0x00);		       /* segment select bits 0..3 */
-    if (!Is_stdET4K)
-	outb(0x3CB, 0x00);	       /* segment select bits 4,5 */
+    outb(0x3CB, 0x00);	       /* segment select bits 4,5 */
 
     if (DAC_is_GenDAC) {
 	/* Restore GenDAC Command and PLL registers */
@@ -3073,7 +2600,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
 	    outb(iobase + 5, (tmp & 0x3F));
 	}
     }
-    if (ET6000_programmable_clock) {
+    if (pTseng->ChipType == ET6000) {
 	/* Restore ET6000 CLKDAC PLL registers */
 	tmp = inb(pTseng->IOAddress + 0x67);	/* remember old CLKDAC index register pointer */
 	outb(pTseng->IOAddress + 0x67, 2);
@@ -3101,7 +2628,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
     if (DAC_IS_ATT49x)
 	tseng_setdaccomm(tsengReg->ATTdac_cmd);
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	outb(pTseng->IOAddress + 0x13, tsengReg->ET6K_13);
 	outb(pTseng->IOAddress + 0x40, tsengReg->ET6K_40);
 	outb(pTseng->IOAddress + 0x58, tsengReg->ET6K_58);
@@ -3121,16 +2648,16 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
     outw(iobase + 4, (tsengReg->CR33 << 8) | 0x33);
     outw(iobase + 4, (tsengReg->CR34 << 8) | 0x34);
     outw(iobase + 4, (tsengReg->CR35 << 8) | 0x35);
-    if (Is_W32_any) {
+
+    if (pTseng->ChipType == ET4000) {
 	outw(iobase + 4, (tsengReg->CR37 << 8) | 0x37);
 	outw(0x217a, (tsengReg->ExtIMACtrl << 8) | 0xF7);
-    }
-    if (!Is_ET6K) {
+
 	outw(iobase + 4, (tsengReg->CR32 << 8) | 0x32);
     }
+
     outb(0x3CD, tsengReg->ExtSegSel[0]);
-    if (pTseng->ChipType > TYPE_ET4000)
-	outb(0x3CB, tsengReg->ExtSegSel[1]);
+    outb(0x3CB, tsengReg->ExtSegSel[1]);
 
 #ifdef TODO
     /*
@@ -3152,9 +2679,8 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
      * TRUE)/TsengProtect(pScrn, FALSE) pair, because the sequencer reset
      * also resets the linear mode bits in CRTC 0x36.
      */
-    if (Is_W32_any) {
+    if (pTseng->ChipType == ET4000)
 	outw(iobase + 4, (tsengReg->CR36 << 8) | 0x36);
-    }
 }
 
 /* replacement of vgaHWBlankScreen(pScrn, unblank) without seq reset */
@@ -3227,24 +2753,24 @@ ET4000Probe()
 	 * 
 	 */
 
-	    if ((pTseng->ChipType < TYPE_ET4000W32) || (pTseng->Linmem_1meg && pTseng->UseLinMem)) {
+        if (pTseng->Linmem_1meg && pTseng->UseLinMem) {
 	    tseng_use_ACL = FALSE;
 	} else {
-	    /* enable acceleration-related options */
-	    OFLG_SET(OPTION_NOACCEL, &TSENG.ChipOptionFlags);
-	    OFLG_SET(OPTION_PCI_RETRY, &TSENG.ChipOptionFlags);
-	    OFLG_SET(OPTION_SHOWCACHE, &TSENG.ChipOptionFlags);
+            /* enable acceleration-related options */
+            OFLG_SET(OPTION_NOACCEL, &TSENG.ChipOptionFlags);
+            OFLG_SET(OPTION_PCI_RETRY, &TSENG.ChipOptionFlags);
+            OFLG_SET(OPTION_SHOWCACHE, &TSENG.ChipOptionFlags);
 
-	    tseng_use_ACL = !OFLG_ISSET(OPTION_NOACCEL, &vga256InfoRec.options);
-	}
+            tseng_use_ACL = !OFLG_ISSET(OPTION_NOACCEL, &vga256InfoRec.options);
+        }
 
 	...
 
 	/* Hardware Cursor support */
 #ifdef W32_HW_CURSOR_FIXED
-	    if (pTseng->ChipType >= TYPE_ET4000W32P)
+	    if (pTseng->ChipType == ET4000)
 #else
-	    if (Is_ET6K)
+	    if (pTseng->ChipType == ET6000)
 #endif
 	{
 	    /* Set HW Cursor option valid */
@@ -3258,7 +2784,7 @@ ET4000Probe()
 	tseng_use_ACL = FALSE;
     }
 
-    if (!Is_ET6K) {
+    if (pTseng->ChipType == ET4000) {
 	/* Initialize option flags allowed for this driver */
 	OFLG_SET(OPTION_LEGEND, &TSENG.ChipOptionFlags);
 	OFLG_SET(OPTION_HIBIT_HIGH, &TSENG.ChipOptionFlags);
@@ -3270,15 +2796,6 @@ ET4000Probe()
 	    OFLG_SET(OPTION_W32_INTERLEAVE_OFF, &TSENG.ChipOptionFlags);
 	    OFLG_SET(OPTION_SLOW_DRAM, &TSENG.ChipOptionFlags);
 	    OFLG_SET(OPTION_FAST_DRAM, &TSENG.ChipOptionFlags);
-	}
-/*
- * because of some problems with W32 cards, SLOW_DRAM is _always_ enabled
- * for those cards
- */
-	if (pTseng->ChipType <= TYPE_ET4000W32) {
-	    ErrorF("%s %s: option \"slow_dram\" is enabled by default on this card.\n",
-		XCONFIG_PROBED, vga256InfoRec.name);
-	    OFLG_SET(OPTION_SLOW_DRAM, &vga256InfoRec.options);
 	}
 	
 	...

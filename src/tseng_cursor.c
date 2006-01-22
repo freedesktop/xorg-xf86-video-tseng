@@ -83,7 +83,7 @@ TsengShowCursor(ScrnInfoPtr pScrn)
     TsengPtr pTseng = TsengPTR(pScrn);
 
     /* Enable the hardware cursor. */
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	tmp = inb(pTseng->IOAddress + 0x46);
 	outb(pTseng->IOAddress + 0x46, (tmp | 0x01));
     } else {
@@ -100,7 +100,7 @@ TsengHideCursor(ScrnInfoPtr pScrn)
     TsengPtr pTseng = TsengPTR(pScrn);
 
     /* Disable the hardware cursor. */
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	tmp = inb(pTseng->IOAddress + 0x46);
 	outb(pTseng->IOAddress + 0x46, (tmp & 0xfe));;
     } else {
@@ -136,7 +136,7 @@ TsengSetCursorPosition(ScrnInfoPtr pScrn, int x, int y)
 	y *= 2;
 #endif
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	outb(pTseng->IOAddress + 0x82, xorigin);
 	outb(pTseng->IOAddress + 0x83, yorigin);
 
@@ -178,7 +178,7 @@ TsengSetCursorColors(ScrnInfoPtr pScrn, int bg, int fg)
     TsengPtr pTseng = TsengPTR(pScrn);
     unsigned char et6k_fg, et6k_bg;
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	et6k_fg = (fg & 0x00000003)
 	    | ((fg & 0x00000300) >> 6)
 	    | ((fg & 0x00030000) >> 12);
@@ -227,7 +227,7 @@ TsengLoadCursorImage(ScrnInfoPtr pScrn, unsigned char *bits)
      * We need to set it here or we might loose it on mode/vt switches.
      */
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	/* bits 19:16 */
 	outb(iobase + 0x04, 0x0E);
 	tmp = inb(iobase + 0x05) & 0xF0;

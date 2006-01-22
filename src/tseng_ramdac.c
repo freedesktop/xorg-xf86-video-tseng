@@ -354,7 +354,7 @@ Check_Tseng_Ramdac(ScrnInfoPtr pScrn)
 	    return FALSE;
 	}
     } else {			       /* autoprobe for the RAMDAC */
-	if (Is_ET6K) {
+	if (pTseng->ChipType == ET6000) {
 	    pTseng->DacInfo.DacType = ET6000_DAC;
 	    (void) inb(pTseng->IOAddress + 0x67);
 	    outb(pTseng->IOAddress + 0x67, 10);
@@ -557,7 +557,7 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
 		(mode->PrivFlags == TSENG_MODE_PIXMUX);
 
     pTseng->ModeReg.ExtATC &= 0xCF;    /* ATC index 0x16 -- bits-per-PCLK */
-    if (Is_ET6K)
+    if (pTseng->ChipType == ET6000)
 	pTseng->ModeReg.ExtATC |= (pTseng->Bytesperpixel - 1) << 4;
     else if (dac16bit)
 	pTseng->ModeReg.ExtATC |= 0x20;

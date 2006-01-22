@@ -1,4 +1,4 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_inline.h,v 1.8 2000/08/08 08:58:07 eich Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_inline.h,v 1.5 1998/07/25 16:56:03 dawes Exp $ */
 
 #include "tseng.h"
 
@@ -37,12 +37,7 @@ SET_FG_COLOR(TsengPtr pTseng, int color)
     color = COLOR_REPLICATE_DWORD(pTseng, color);
     MMIO_OUT32(pTseng->scratchMemBase, pTseng->tsengFg, color);
     
-    if (Is_W32p || Is_ET6K) {
-	ACL_SOURCE_WRAP(0x02);
-    } else {
-        MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengFg + 4, color);
-	ACL_SOURCE_WRAP(0x12);
-    }
+    ACL_SOURCE_WRAP(0x02);
 }
 
 static __inline__ void
@@ -52,12 +47,8 @@ SET_BG_COLOR(TsengPtr pTseng, int color)
     ACL_PATTERN_Y_OFFSET(3);
     color = COLOR_REPLICATE_DWORD(pTseng, color);
     MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengPat, color);
-    if (Is_W32p || Is_ET6K) {
-	ACL_PATTERN_WRAP(0x02);
-    } else {
-        MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengPat + 4, color);
-	ACL_PATTERN_WRAP(0x12);
-    }
+    
+    ACL_PATTERN_WRAP(0x02);
 }
 
 /*
@@ -76,13 +67,8 @@ SET_FG_BG_COLOR(TsengPtr pTseng, int fgcolor, int bgcolor)
     bgcolor = COLOR_REPLICATE_DWORD(pTseng, bgcolor);
     MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengFg, fgcolor);
     MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengPat, bgcolor);
-    if (Is_W32p || Is_ET6K) {
-	ACL_PATTERN_WRAP32(0x00020002);
-    } else {
-        MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengFg + 4, fgcolor);
-        MMIO_OUT32(pTseng->scratchMemBase,pTseng->tsengPat + 4, bgcolor);
-	ACL_PATTERN_WRAP32(0x00120012);
-    }
+
+    ACL_PATTERN_WRAP32(0x00020002);
 }
 
 /*
@@ -115,7 +101,7 @@ CALC_XY(TsengPtr pTseng, int x, int y)
     if ((pTseng->old_y == y) && (pTseng->old_x == x))
 	return -1;
 
-    if (Is_W32p)
+    if (pTseng->ChipType == ET4000)
 	new_x = MULBPP(pTseng, x - 1);
     else
 	new_x = MULBPP(pTseng, x) - 1;
@@ -131,7 +117,7 @@ SET_XY(TsengPtr pTseng, int x, int y)
 {
     int new_x;
 
-    if (Is_W32p)
+    if (pTseng->ChipType == ET4000)
 	new_x = MULBPP(pTseng, x - 1);
     else
 	new_x = MULBPP(pTseng, x) - 1;
@@ -145,7 +131,7 @@ SET_X_YRAW(TsengPtr pTseng, int x, int y)
 {
     int new_x;
 
-    if (Is_W32p)
+    if (pTseng->ChipType == ET4000)
 	new_x = MULBPP(pTseng, x - 1);
     else
 	new_x = MULBPP(pTseng, x) - 1;

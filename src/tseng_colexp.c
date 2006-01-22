@@ -82,7 +82,7 @@ TsengXAAInit_Colexp(ScrnInfoPtr pScrn)
 	NO_PLANEMASK;
 
 #if 1
-    if (Is_ET6K || (Is_W32p && (pScrn->bitsPerPixel == 8))) {
+    if ((pTseng->ChipType == ET6000) || (pScrn->bitsPerPixel == 8)) {
 	pXAAInfo->SetupForScreenToScreenColorExpandFill =
 	    TsengSetupForScreenToScreenColorExpandFill;
 	pXAAInfo->SubsequentScreenToScreenColorExpandFill =
@@ -106,8 +106,7 @@ TsengXAAInit_Colexp(ScrnInfoPtr pScrn)
 	SCANLINE_PAD_DWORD |
 	NO_PLANEMASK;
 
-#if 1
-    if (!Is_ET6K) {
+    if (pTseng->ChipType == ET4000) {
 	pTseng->XAAScanlineColorExpandBuffers[0] =
 	    xnfalloc(((pScrn->virtualX + 31)/32) * 4 * pTseng->Bytesperpixel);
 	if (pTseng->XAAScanlineColorExpandBuffers[0] == NULL) {
@@ -158,10 +157,7 @@ TsengXAAInit_Colexp(ScrnInfoPtr pScrn)
 	    pTseng->ColExpLUT[i] = r;
 	    /* ErrorF("0x%08X, ",r ); if ((i%8)==7) ErrorF("\n"); */
 	}
-    }
-#endif
-#if 1
-    if (Is_ET6K) {
+    } else {
 	/*
 	 * Triple-buffering is needed to account for double-buffering of Tseng
 	 * acceleration registers.
@@ -197,7 +193,6 @@ TsengXAAInit_Colexp(ScrnInfoPtr pScrn)
 	}
 	pXAAInfo->ScanlineColorExpandBuffers = pTseng->XAAColorExpandBuffers;
     }
-#endif
 
 #ifdef TSENG_CPU_TO_SCREEN_COLOREXPAND
     /*
@@ -247,7 +242,7 @@ TsengXAAInit_Colexp(ScrnInfoPtr pScrn)
 }
 
 #define SET_FUNCTION_COLOREXPAND \
-    if (Is_ET6K) \
+    if (pTseng->ChipType == ET6000) \
       ACL_MIX_CONTROL(0x32); \
     else \
       ACL_ROUTING_CONTROL(0x08);
@@ -262,7 +257,7 @@ TsengSubsequentScanlineCPUToScreenColorExpandFill(ScrnInfoPtr pScrn,
 {
     TsengPtr pTseng = TsengPTR(pScrn);
 
-    if (!Is_ET6K) {
+    if (pTseng->ChipType == ET4000) {
 	/* the accelerator needs DWORD padding, and "w" is in PIXELS... */
 	pTseng->acl_colexp_width_dwords = (MULBPP(pTseng, w) + 31) >> 5;
 	pTseng->acl_colexp_width_bytes = (MULBPP(pTseng, w) + 7) >> 3;

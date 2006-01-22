@@ -1,5 +1,5 @@
 
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_acl.h,v 1.20 2000/12/14 16:33:10 eich Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_acl.h,v 1.16 1998/08/29 05:43:37 dawes Exp $ */
 
 
 #ifndef _TSENG_ACL_H
@@ -154,7 +154,7 @@ tseng_wait(TsengPtr pTseng, int reg, char *name, unsigned char mask)
 #define WAIT_XY tseng_wait(pTseng, ACL_ACCELERATOR_STATUS, "XY", 0x4)
 
 #define SET_FUNCTION_BLT \
-    if (Is_ET6K) \
+    if (pTseng->ChipType == ET6000) \
         ACL_MIX_CONTROL(0x33); \
     else \
         ACL_ROUTING_CONTROL(0x00);
@@ -205,17 +205,13 @@ tseng_wait(TsengPtr pTseng, int reg, char *name, unsigned char mask)
 
 /* Must do 0x09 (in one operation) for the W32 */
 #define START_ACL(pTseng, dst) \
-    ACL_DESTINATION_ADDRESS(dst); \
-    if (Is_W32 || Is_W32i) ACL_OPERATION_STATE(0x09);
+    ACL_DESTINATION_ADDRESS(dst);
 
 /* START_ACL for the ET6000 */
 #define START_ACL_6(dst) \
     ACL_DESTINATION_ADDRESS(dst);
 
 #define START_ACL_CPU(pTseng, dst) \
-    if (Is_W32 || Is_W32i) \
-      MMIO_OUT32(pTseng->MMioBase, 0x08<<8,(CARD32)dst); /* writing to MMU2 will trigger accel at this address */ \
-    else \
       ACL_DESTINATION_ADDRESS(dst);
 
 /*    ACL_DESTINATION_ADDRESS(dst);    should be enough for START_ACL_CPU */

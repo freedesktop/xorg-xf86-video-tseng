@@ -100,11 +100,11 @@ tseng_terminate_acl(TsengPtr pTseng)
 void 
 tseng_recover_timeout(TsengPtr pTseng)
 {
-    if (!Is_ET6K) {
+    if (pTseng->ChipType == ET4000) {
 	ErrorF("trying to unlock......................................\n");
 	MMIO_OUT32(pTseng->tsengCPU2ACLBase,0,0L); /* try unlocking the bus when CPU-to-accel gets stuck */
-    }
-    if (Is_W32p) {		       /* flush the accelerator pipeline */
+
+        /* flush the accelerator pipeline */
 	ACL_SUSPEND_TERMINATE(0x00);
 	ACL_SUSPEND_TERMINATE(0x02);
 	ACL_SUSPEND_TERMINATE(0x00);
@@ -163,7 +163,7 @@ tseng_init_acl(ScrnInfoPtr pScrn)
     ACL_INTERRUPT_STATUS(0x0);
     ACL_ACCELERATOR_STATUS_SET(0x0);
 
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000) {
 	ACL_STEPPING_INHIBIT(0x0);   /* Undefined at power-on, let all maps (Src, Dst, Mix, Pat) step */
 	ACL_6K_CONFIG(0x00);	       /* maximum performance -- what did you think? */
 	ACL_POWER_CONTROL(0x01);     /* conserve power when ACL is idle */
@@ -175,33 +175,19 @@ tseng_init_acl(ScrnInfoPtr pScrn)
 	ACL_ROUTING_CONTROL(0x00);
     }
 
-    if (Is_W32p || Is_ET6K) {
-	/* Enable the W32p startup bit and set use an eight-bit pixel depth */
-	ACL_NQ_X_POSITION(0);
-	ACL_NQ_Y_POSITION(0);
-	ACL_PIXEL_DEPTH((pScrn->bitsPerPixel - 8) << 1);
-	/* writing destination address will start ACL */
-	ACL_OPERATION_STATE(0x10);
-    } else {
-	/* X, Y positions set to zero's for w32 and w32i */
-	ACL_X_POSITION(0);
-	ACL_Y_POSITION(0);
-	ACL_OPERATION_STATE(0x0);
-	/* if we ever use CPU-to-screen pixmap uploading on W32I or W32,
-	 * ACL_VIRTUAL_BUS_SIZE will need to be made dynamic (i.e. moved to
-	 * Setup() functions).
-	 *
-	 * VBS = 1 byte is faster than VBS = 4 bytes, since the ACL can
-	 * start processing as soon as the first byte arrives.
-	 */
-	ACL_VIRTUAL_BUS_SIZE(0x00);
-    }
+    /* Enable the W32p startup bit and set use an eight-bit pixel depth */
+    ACL_NQ_X_POSITION(0);
+    ACL_NQ_Y_POSITION(0);
+    ACL_PIXEL_DEPTH((pScrn->bitsPerPixel - 8) << 1);
+    /* writing destination address will start ACL */
+    ACL_OPERATION_STATE(0x10);
+
     ACL_DESTINATION_Y_OFFSET(pScrn->displayWidth * pTseng->Bytesperpixel - 1);
     ACL_XY_DIRECTION(0);
 
     MMU_CONTROL(0x74);
 
-    if (Is_W32p && pTseng->UseLinMem) {
+    if ((pTseng->ChipType == ET4000) && pTseng->UseLinMem) {
 	/*
 	 * Since the w32p revs C and D don't have any memory mapped when the
 	 * accelerator registers are used it is necessary to use the MMUs to
@@ -221,7 +207,7 @@ tseng_init_acl(ScrnInfoPtr pScrn)
 	 * another 1MB of memory. This totals to 3MB of mem. available in
 	 * linear memory when the accelerator is enabled.
 	 */
-	if (Is_W32p_ab) {
+	if ((pTseng->ChipRev == REV_A) || (pTseng->ChipRev == REV_B)) {
 	    MMIO_OUT32(pTseng->MMioBase, 0x00<<0, 0x200000L);
 	    MMIO_OUT32(pTseng->MMioBase, 0x04<<0, 0x280000L);
 	} else {		       /* rev C & D */

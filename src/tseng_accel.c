@@ -110,11 +110,6 @@ TsengXAAInit(ScreenPtr pScreen)
      */
     pXAAinfo->Flags = PIXMAP_CACHE;
 
-#ifdef TODO
-    if (Tseng_bus != T_BUS_PCI)
-	pXAAinfo->Flags |= COP_FRAMEBUFFER_CONCURRENCY;
-#endif
-
     /*
      * The following line installs a "Sync" function, that waits for
      * all coprocessor operations to complete.
@@ -122,7 +117,10 @@ TsengXAAInit(ScreenPtr pScreen)
     pXAAinfo->Sync = TsengSync;
 
     /* W32 and W32i must wait for ACL before changing registers */
-    pTseng->need_wait_acl = (Is_W32_W32i || Is_W32p);
+    if (pTseng->ChipType == ET4000)
+        pTseng->need_wait_acl = TRUE;
+    else
+        pTseng->need_wait_acl = FALSE;
 
     pTseng->line_width = pScrn->displayWidth * pTseng->Bytesperpixel;
 
@@ -141,20 +139,16 @@ TsengXAAInit(ScreenPtr pScreen)
     pXAAinfo->SolidFillFlags |= NO_PLANEMASK;
 #endif
 
-    if (!(Is_W32_W32i && (pScrn->bitsPerPixel == 24))) {
-	pXAAinfo->SetupForSolidFill = TsengSetupForSolidFill;
-	if (Is_ET6K) {
-	    pXAAinfo->SubsequentSolidFillRect = Tseng6KSubsequentSolidFillRect;
-	} else if (Is_W32p)
-	    pXAAinfo->SubsequentSolidFillRect = TsengW32pSubsequentSolidFillRect;
-	else			       /* W32, W32i */
-	    pXAAinfo->SubsequentSolidFillRect = TsengW32iSubsequentSolidFillRect;
-    }
+    pXAAinfo->SetupForSolidFill = TsengSetupForSolidFill;
+    if (pTseng->ChipType == ET6000)
+        pXAAinfo->SubsequentSolidFillRect = Tseng6KSubsequentSolidFillRect;
+    else
+        pXAAinfo->SubsequentSolidFillRect = TsengW32pSubsequentSolidFillRect;
+
 #ifdef TSENG_TRAPEZOIDS
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000)
 	/* disabled for now: not fully compliant yet */
 	pXAAinfo->SubsequentFillTrapezoidSolid = TsengSubsequentFillTrapezoidSolid;
-    }
 #endif
 #endif
 
@@ -168,9 +162,9 @@ TsengXAAInit(ScreenPtr pScreen)
      */
 #ifdef ET6K_TRANSPARENCY
     pXAAinfo->CopyAreaFlags = NO_PLANEMASK;
-    if (!Is_ET6K) {
+    if (pTseng->ChipType == ET4000)
 	pXAAinfo->CopyAreaFlags |= NO_TRANSPARENCY;
-    }
+
 #else
     pXAAinfo->CopyAreaFlags = NO_TRANSPARENCY;
 #endif
@@ -236,14 +230,13 @@ TsengXAAInit(ScreenPtr pScreen)
 
 #ifdef ET6K_TRANSPARENCY
     pXAAinfo->PatternFlags |= HARDWARE_PATTERN_NO_PLANEMASK;
-    if (Is_ET6K) {
+    if (pTseng->ChipType == ET6000)
 	pXAAinfo->PatternFlags |= HARDWARE_PATTERN_TRANSPARENCY;
-    }
 #endif
 
 #if 0
     /* FIXME! This needs to be fixed for W32 and W32i (it "should work") */
-    if ((pScrn->bitsPerPixel != 24) && (Is_W32p || Is_ET6K)) {
+    if (pScrn->bitsPerPixel != 24) {
 	pXAAinfo->SetupForColor8x8PatternFill =
 	    TsengSetupForColor8x8PatternFill;
 	pXAAinfo->SubsequentColor8x8PatternFillRect =
@@ -261,72 +254,71 @@ TsengXAAInit(ScreenPtr pScreen)
      * is lacking)...
      */
 
-    if (Is_W32p || Is_ET6K) {
-	/*
-	 * Fill in the hardware linedraw ACL_XY_DIRECTION table
-	 *
-	 * W32BresTable[] converts XAA interface Bresenham octants to direct
-	 * ACL direction register contents. This includes the correct bias
-	 * setting etc.
-	 *
-	 * According to miline.h (but with base 0 instead of base 1 as in
-	 * miline.h), the octants are numbered as follows:
-	 *
-	 *   \    |    /
-	 *    \ 2 | 1 /
-	 *     \  |  /
-	 *    3 \ | / 0
-	 *       \|/
-	 *   -----------
-	 *       /|\
-	 *    4 / | \ 7
-	 *     /  |  \
-	 *    / 5 | 6 \
-	 *   /    |    \
-	 *
-	 * In ACL_XY_DIRECTION, bits 2:0 are defined as follows:
-	 *	0: '1' if XDECREASING
-	 *	1: '1' if YDECREASING
-	 *	2: '1' if XMAJOR (== not YMAJOR)
-	 *
-	 * Bit 4 defines the bias.  It should be set to '1' for all octants
-	 * NOT passed to miSetZeroLineBias(). i.e. the inverse of the X bias.
-	 *
-	 * (For MS compatible bias, the data book says to set to the same as
-	 * YDIR, i.e. bit 1 of the same register, = '1' if YDECREASING. MS
-	 * bias is towards octants 0..3 (i.e. Y decreasing), hence this
-	 * definition of bit 4)
-	 *
-	 */
-	pTseng->BresenhamTable = xnfalloc(8);
-	if (pTseng->BresenhamTable == NULL) {
-	    xf86Msg(X_ERROR, "Could not malloc Bresenham Table.\n");
-	    return FALSE;
-	}
-	for (i=0; i<8; i++) {
-	    unsigned char zerolinebias = miGetZeroLineBias(pScreen);
-	    pTseng->BresenhamTable[i] = 0xA0; /* command=linedraw, use error term */
-	    if (i & XDECREASING) pTseng->BresenhamTable[i] |= 0x01;
-	    if (i & YDECREASING) pTseng->BresenhamTable[i] |= 0x02;
-	    if (!(i & YMAJOR))   pTseng->BresenhamTable[i] |= 0x04;
-	    if ((1 << i) & zerolinebias) pTseng->BresenhamTable[i] |= 0x10;
-	    /* ErrorF("BresenhamTable[%d]=0x%x\n", i, pTseng->BresenhamTable[i]); */
-	} 
-
-	pXAAinfo->SolidLineFlags = 0;
-	pXAAinfo->SetupForSolidLine = TsengSetupForSolidFill;
-	pXAAinfo->SubsequentSolidBresenhamLine =
-	    TsengSubsequentSolidBresenhamLine;
-	/*
-	 * ErrorTermBits is used to limit minor, major and error term, so it
-	 * must be min(errorterm_size, delta_major_size, delta_minor_size)
-	 * But the calculation for major and minor is done on the DOUBLED
-	 * values (as per the Bresenham algorithm), so they can also have 13
-	 * bits (inside XAA). They are divided by 2 in this driver, so they
-	 * are then again limited to 12 bits.
-	 */
-	pXAAinfo->SolidBresenhamLineErrorTermBits = 13;
+    /*
+     * Fill in the hardware linedraw ACL_XY_DIRECTION table
+     *
+     * W32BresTable[] converts XAA interface Bresenham octants to direct
+     * ACL direction register contents. This includes the correct bias
+     * setting etc.
+     *
+     * According to miline.h (but with base 0 instead of base 1 as in
+     * miline.h), the octants are numbered as follows:
+     *
+     *   \    |    /
+     *    \ 2 | 1 /
+     *     \  |  /
+     *    3 \ | / 0
+     *       \|/
+     *   -----------
+     *       /|                                 \
+     *    4 / | \ 7
+     *     /  |       \
+     *    / 5 | 6      \
+     *   /    |        \
+     *
+     * In ACL_XY_DIRECTION, bits 2:0 are defined as follows:
+     *	0: '1' if XDECREASING
+     *	1: '1' if YDECREASING
+     *	2: '1' if XMAJOR (== not YMAJOR)
+     *
+     * Bit 4 defines the bias.  It should be set to '1' for all octants
+     * NOT passed to miSetZeroLineBias(). i.e. the inverse of the X bias.
+     *
+     * (For MS compatible bias, the data book says to set to the same as
+     * YDIR, i.e. bit 1 of the same register, = '1' if YDECREASING. MS
+     * bias is towards octants 0..3 (i.e. Y decreasing), hence this
+     * definition of bit 4)
+     *
+     */
+    pTseng->BresenhamTable = xnfalloc(8);
+    if (pTseng->BresenhamTable == NULL) {
+        xf86Msg(X_ERROR, "Could not malloc Bresenham Table.\n");
+        return FALSE;
     }
+    for (i=0; i<8; i++) {
+        unsigned char zerolinebias = miGetZeroLineBias(pScreen);
+        pTseng->BresenhamTable[i] = 0xA0; /* command=linedraw, use error term */
+        if (i & XDECREASING) pTseng->BresenhamTable[i] |= 0x01;
+        if (i & YDECREASING) pTseng->BresenhamTable[i] |= 0x02;
+        if (!(i & YMAJOR))   pTseng->BresenhamTable[i] |= 0x04;
+        if ((1 << i) & zerolinebias) pTseng->BresenhamTable[i] |= 0x10;
+        /* ErrorF("BresenhamTable[%d]=0x%x\n", i, pTseng->BresenhamTable[i]); */
+    } 
+    
+    pXAAinfo->SolidLineFlags = 0;
+    pXAAinfo->SetupForSolidLine = TsengSetupForSolidFill;
+    pXAAinfo->SubsequentSolidBresenhamLine =
+        TsengSubsequentSolidBresenhamLine;
+    /*
+     * ErrorTermBits is used to limit minor, major and error term, so it
+     * must be min(errorterm_size, delta_major_size, delta_minor_size)
+     * But the calculation for major and minor is done on the DOUBLED
+     * values (as per the Bresenham algorithm), so they can also have 13
+     * bits (inside XAA). They are divided by 2 in this driver, so they
+     * are then again limited to 12 bits.
+     */
+    pXAAinfo->SolidBresenhamLineErrorTermBits = 13;
+
 #endif
 
 #if 1
@@ -491,21 +483,6 @@ TsengW32pSubsequentSolidFillRect(ScrnInfoPtr pScrn,
 }
 
 void
-TsengW32iSubsequentSolidFillRect(ScrnInfoPtr pScrn,
-    int x, int y, int w, int h)
-{
-    TsengPtr pTseng = TsengPTR(pScrn);
-    int destaddr = FBADDR(pTseng, x, y);
-
-    wait_acl_queue(pTseng);
-
-    SET_XYDIR(0);
-
-    SET_XY_6(pTseng, w, h);
-    START_ACL(pTseng, destaddr);
-}
-
-void
 Tseng6KSubsequentSolidFillRect(ScrnInfoPtr pScrn,
     int x, int y, int w, int h)
 {
@@ -543,7 +520,7 @@ Tseng_setup_screencopy(TsengPtr pTseng,
     wait_acl_queue(pTseng);
 
 #ifdef ET6K_TRANSPARENCY
-    if (Is_ET6K && (trans_color != -1)) {
+    if ((pTseng->ChipType == ET6000) && (trans_color != -1)) {
 	SET_BG_COLOR(trans_color);
 	SET_FUNCTION_BLT_TR;
     } else

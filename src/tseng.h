@@ -62,32 +62,22 @@ void TsengProtect(ScrnInfoPtr pScrn, Bool on);
  */
 
 typedef enum {
-    TYPE_ET4000,
-    TYPE_ET4000W32,
-    TYPE_ET4000W32I,
-    TYPE_ET4000W32P,
-    TYPE_ET6000,
-    TYPE_ET6100,
-    TYPE_TSENG
-} t_tseng_type;
+    ET4000, /* We only have the PCI ones so all are W32p */
+    ET6000  /* Both ET6000 and ET6100 */
+} tseng_chiptype;
 
-/* revision ID for W32 chips: currently used for W32i and W32p */
+/* Artificial: W32p revisions are different pci ids.
+ * ET6000 and ET6100 have same pci id but differ by revision.
+ */
 typedef enum {
     TSENGNOREV = 0,
-    W32REVID_A,
-    W32REVID_B,
-    W32REVID_C,
-    W32REVID_D
-} t_w32_revid;
-
-#define ET6100REVID (0x70)
-
-typedef enum {
-    T_BUS_ISA,
-    T_BUS_MCA,
-    T_BUS_VLB,
-    T_BUS_PCI
-} t_tseng_bus;
+    REV_A,
+    REV_B,
+    REV_C,
+    REV_D,
+    REV_ET6000,
+    REV_ET6100
+} tseng_chiprev;
 
 extern SymTabRec TsengDacTable[];
 
@@ -218,9 +208,10 @@ typedef struct {
     TsengRegRec SavedReg;	       /* saved Tseng registers at server start */
     TsengRegRec ModeReg;
     unsigned long icd2061_dwv;	       /* To hold the clock data between Init and Restore */
-    t_tseng_bus Bustype;	       /* W32 bus type (currently used for lin mem on W32i) */
-    t_tseng_type ChipType;	       /* "Chipset" causes confusion with pScrn->chipset */
-    int ChipRev;
+
+    tseng_chiptype  ChipType;  /* "Chipset" causes confusion with pScrn->chipset */
+    tseng_chiprev  ChipRev;
+
     memType LinFbAddress;
     unsigned char *FbBase;
     memType LinFbAddressMask;
@@ -277,21 +268,6 @@ typedef struct {
 } TsengRec, *TsengPtr;
 
 #define TsengPTR(p) ((TsengPtr)((p)->driverPrivate))
-
-#define Is_stdET4K  ( pTseng->ChipType == TYPE_ET4000 )
-#define Is_W32      ( pTseng->ChipType == TYPE_ET4000W32 )
-#define Is_W32i     ( pTseng->ChipType == TYPE_ET4000W32I )
-#define Is_W32p     ( pTseng->ChipType == TYPE_ET4000W32P)
-#define Is_ET6000   ( pTseng->ChipType == TYPE_ET6000 )
-#define Is_ET6100   ( pTseng->ChipType == TYPE_ET6100 )
-
-#define Is_W32_W32i ( Is_W32 || Is_W32i )
-#define Is_W32_any  ( Is_W32 || Is_W32i || Is_W32p )
-#define Is_W32p_ab  ( Is_W32p && ( (pTseng->ChipRev == W32REVID_A) || (pTseng->ChipRev == W32REVID_B) ) )
-#define Is_W32p_cd  ( Is_W32p && ( (pTseng->ChipRev == W32REVID_C) || (pTseng->ChipRev == W32REVID_D) ) )
-#define Is_ET6K     ( Is_ET6000 || Is_ET6100 )
-
-#define CHIP_SUPPORTS_LINEAR ( Is_W32i || Is_W32p || Is_ET6K )
 
 #define DAC_IS_ATT49x ( (pTseng->DacInfo.DacType == ATT20C490_DAC) \
                      || (pTseng->DacInfo.DacType == ATT20C491_DAC) \

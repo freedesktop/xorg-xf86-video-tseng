@@ -1,13 +1,45 @@
-2006-01-21  Luc Verhaegen,,,  <set EMAIL_ADDRESS environment variable>
+2006-01-22  Luc Verhaegen  <libv@skynet.be>
 
-	reviewed by: <delete if not using a buddy>
+	* configure.ac:
+	* src/tseng.h:
+	* src/tseng_accel.c: (TsengXAAInit), (Tseng_setup_screencopy):
+	* src/tseng_acl.c: (tseng_recover_timeout), (tseng_init_acl):
+	* src/tseng_acl.h:
+	* src/tseng_clock.c: (tseng_clock_setup),
+	(Tseng_ET4000ClockSelect):
+	* src/tseng_colexp.c: (TsengXAAInit_Colexp),
+	(TsengSubsequentScanlineCPUToScreenColorExpandFill):
+	* src/tseng_cursor.c: (TsengShowCursor), (TsengHideCursor),
+	(TsengSetCursorPosition), (TsengSetCursorColors),
+	(TsengLoadCursorImage):
+	* src/tseng_driver.c: (TsengIdentify), (TsengProbe),
+	(TsengPreInitPCI), (TsengLimitMem), (TsengDetectMem),
+	(TsengProcessOptions), (TsengGetLinFbAddress), (TsengPreInit),
+	(TsengScreenInit), (TsengSaveScreen), (TsengModeInit), (TsengSave):
+	* src/tseng_inline.h:
+	* src/tseng_ramdac.c: (Check_Tseng_Ramdac), (tseng_set_ramdac_bpp):
+
+	- -Wall and -pedantic are gccisms (Alan Coopersmith).
+	- Remove ET4000, ET4000W32 and ET4000W32I devices.
+	- Rework handling of remaining devices.
+	- Clean up Probe and PreInit to only handle pci devices.
+
+2006-01-21  Luc Verhaegen  <libv@skynet.be>
 
 	* configure.ac:
 	* src/tseng.h:
 	* src/tseng_driver.c: (TsengAssignFPtr), (TsengModeInit),
 	(TsengSave):
 	* src/tseng_ramdac.c: (tseng_set_ramdac_bpp):
+	It's 2006, maybe it's time to inform the tseng driver that humankind
+	survived the millenium bug.
 
+	First phase of changes:
+	- Fix a glaring problem that's been there since 1998: RegRec arrays
+	  used beyond their boundaries.
+	- Add -Wall and -pedantic to CFLAGS.
+	- Fix VERSION redefinition.
+	
 2005-12-20  Kevin E. Martin  <kem-at-freedesktop-dot-org>
 
 	* configure.ac:

@@ -144,22 +144,25 @@ void tseng_clock_setup(ScrnInfoPtr pScrn)
 	 * to 175 MHz and the pixel_clock*(bytes/pixel) FIFO breakdown limit
 	 * to about 275 MHz."
 	 */
-	if (Is_ET6100) {
-	    dacspeed	= 175000;
-	    mem_bw	= 280000;               /* 275000 is _just_ not enough for 1152x864x24 @ 70Hz */
-	} else if (Is_ET6000) {
-	    dacspeed	= 135000;
-	    mem_bw	= 225000;
-	} else {
-	    if ( (pTseng->DacInfo.DacPort16) &&
-		(pScrn->bitsPerPixel == 8) &&
-		(!(DAC_is_GenDAC && pTseng->NoClockchip)) ) {
-		    dacspeed = 135000;              /* we can do PIXMUX */
-		}
-	    mem_bw	= 90000;
-	    if (pScrn->videoRam > 1024)
-		mem_bw	= 150000;               /* interleaved DRAM gives 70% more bandwidth */
-	}
+        if (pTseng->ChipType == ET6000) {
+            if (pTseng->ChipRev == REV_ET6100) {
+                dacspeed = 175000;
+                mem_bw = 280000; /* 275000 is _just_ not enough for 1152x864x24 @ 70Hz */
+            } else { /* ET6000 */
+                dacspeed = 135000;
+                mem_bw = 225000;
+            }
+        } else {
+            if ((pTseng->DacInfo.DacPort16) && (pScrn->bitsPerPixel == 8) &&
+		(!(DAC_is_GenDAC && pTseng->NoClockchip)) )
+                dacspeed = 135000; /* we can do PIXMUX */
+            else
+                dacspeed = MAX_TSENG_CLOCK;
+            
+            mem_bw	= 90000;
+            if (pScrn->videoRam > 1024)
+                mem_bw = 150000; /* interleaved DRAM gives 70% more bandwidth */
+        }
 	pTseng->max_vco_freq = dacspeed*2+1;
 	/*
 	 * "dacspeed" is the theoretical limit imposed by the RAMDAC.
@@ -218,7 +221,7 @@ void tseng_clock_setup(ScrnInfoPtr pScrn)
      * can have either 8-bit DACs that require "bytesperpixel" clocks per
      * pixel, or 16-bit DACs that can transport 8 or 16 bits per clock.
      */
-     if ((pTseng->Bytesperpixel > 1) && (!Is_ET6K)) {
+     if ((pTseng->Bytesperpixel > 1) && (pTseng->ChipType == ET4000)) {
         /* in either 8 or 16-bit DAC case, we can use an 8-bit interface */
 	pTseng->clockRange[0]->maxClock = (forceSpeed) ? dacspeed :
 	    min(MAX_TSENG_CLOCK / pTseng->Bytesperpixel, dacspeed);
@@ -292,12 +295,11 @@ void tseng_clock_setup(ScrnInfoPtr pScrn)
 	     * The CH8398 RAMDAC uses CS3 for register selection (RS2), not for clock selection.
 	     * The GenDAC family only has 8 clocks. Together with MCLK/2, that's 16 clocks.
 	     */
-	    if ( (!Is_stdET4K)
-		&& (!DAC_is_GenDAC) && (pTseng->DacInfo.DacType != CH8398_DAC) )
-		    NoClocks = 32;
+	    if ((!DAC_is_GenDAC) && (pTseng->DacInfo.DacType != CH8398_DAC))
+                NoClocks = 32;
 	    else
-		    NoClocks = 16;
-	    }
+                NoClocks = 16;
+        }
 	/* now probe for the clocks if they are not specified */
 	if (!pTseng->pEnt->device->numclocks) {
 	    pScrn->numClocks = NoClocks;
@@ -353,18 +355,14 @@ Tseng_ET4000ClockSelect(ScrnInfoPtr pScrn, int no)
 	pTseng->save_clock.save2 = inb(iobase + 5);
 	outb(0x3C4, 7);
 	pTseng->save_clock.save3 = inb(0x3C5);
-	if (!Is_stdET4K) {
-	    outb(iobase + 4, 0x31);
-	    pTseng->save_clock.save4 = inb(iobase + 5);
-	}
+        outb(iobase + 4, 0x31);
+        pTseng->save_clock.save4 = inb(iobase + 5);
 	break;
     case CLK_REG_RESTORE:
 	outb(0x3C2, pTseng->save_clock.save1);
 	outw(iobase + 4, 0x34 | (pTseng->save_clock.save2 << 8));
 	outw(0x3C4, 7 | (pTseng->save_clock.save3 << 8));
-	if (!Is_stdET4K) {
-	    outw(iobase + 4, 0x31 | (pTseng->save_clock.save4 << 8));
-	}
+        outw(iobase + 4, 0x31 | (pTseng->save_clock.save4 << 8));
 	break;
     default:
 	/* CS0,CS1 = clock select bits 0,1 */
