@@ -193,8 +193,7 @@ typedef struct {
     Bool UsePCIRetry;		       /* Do we use PCI-retry or busy-waiting */
     Bool UseAccel;		       /* Do we use the XAA acceleration architecture */
     Bool HWCursor;		       /* Do we use the hardware cursor (if supported) */
-    Bool Linmem_1meg;		       /* Is this a card limited to 1Mb of linear memory */
-    Bool UseLinMem;
+
     Bool SlowDram;
     Bool FastDram;
     Bool MedDram;
@@ -212,13 +211,12 @@ typedef struct {
     tseng_chiptype  ChipType;  /* "Chipset" causes confusion with pScrn->chipset */
     tseng_chiprev  ChipRev;
 
-    memType LinFbAddress;
+    memType FbAddress;
     unsigned char *FbBase;
-    memType LinFbAddressMask;
     long FbMapSize;
-    miBankInfoRec BankInfo;
-    CARD32 IOAddress;		       /* PCI config space base address for ET6000 */
-    CARD32 MMIOBase;
+    CARD32 IOAddress; /* PCI config space base address for ET6000 */
+    char * MMioBase;
+
     int MinClock;
     int MaxClock;
     int MemClk;
@@ -250,7 +248,7 @@ typedef struct {
     CARD32* ColExpLUT;
     clock_save save_clock;
     EntityInfoPtr       pEnt;
-    char * MMioBase;
+
     pointer scratchMemBase;
     pointer tsengCPU2ACLBase;
     /* These will hold the ping-pong registers. */
@@ -314,17 +312,6 @@ void TsengAdjustFrame(int scrnIndex, int x, int y, int flags);
  * tseng_dga.c
  */
 Bool TsengDGAInit(ScreenPtr pScreen);
-
-/*
- * From tseng_bank.c
- */
-
-int ET4000SetRead(ScreenPtr pScrn, unsigned int iBank);
-int ET4000SetWrite(ScreenPtr pScrn, unsigned int iBank);
-int ET4000SetReadWrite(ScreenPtr pScrn, unsigned int iBank);
-int ET4000W32SetRead(ScreenPtr pScrn, unsigned int iBank);
-int ET4000W32SetWrite(ScreenPtr pScrn, unsigned int iBank);
-int ET4000W32SetReadWrite(ScreenPtr pScrn, unsigned int iBank);
 
 /*
  * From tseng_clocks.c

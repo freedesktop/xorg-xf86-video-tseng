@@ -178,19 +178,6 @@ TsengXAAInit_Colexp(ScrnInfoPtr pScrn)
 		pTseng->FbBase + pTseng->AccelColorExpandBufferOffsets[i];
 	}
 
-	/*
-	 * for banked memory, translate those addresses to fall in the
-	 * correct aperture. Color expansion uses aperture #0, which sits at
-	 * pTseng->FbBase + 0x18000 + 48.
-	 */
-	if (!pTseng->UseLinMem) {
-	    for (i = 0; i < pXAAInfo->NumScanlineColorExpandBuffers; i++) {
-		pTseng->XAAColorExpandBuffers[i] =
-		    pTseng->XAAColorExpandBuffers[i]
-		    - pTseng->AccelColorExpandBufferOffsets[0]
-		    + 0x18000 + 48;
-	    }
-	}
 	pXAAInfo->ScanlineColorExpandBuffers = pTseng->XAAColorExpandBuffers;
     }
 

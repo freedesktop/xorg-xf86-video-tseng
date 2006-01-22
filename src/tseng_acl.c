@@ -121,33 +121,15 @@ tseng_init_acl(ScrnInfoPtr pScrn)
      * prepare some shortcuts for faster access to memory mapped registers
      */
 
-    if (pTseng->UseLinMem) {
-	pTseng->scratchMemBase = pTseng->FbBase + pTseng->AccelColorBufferOffset;
-	/* 
-	 * we won't be using tsengCPU2ACLBase in linear memory mode anyway, since
-	 * using the MMU apertures restricts the amount of useable video memory
-	 * to only 2MB, supposing we ONLY redirect MMU aperture 2 to the CPU.
-	 * (see data book W32p, page 207)
-	 */
-	pTseng->tsengCPU2ACLBase = pTseng->FbBase + 0x200000;	/* MMU aperture 2 */
-    } else {
-	/*
-	 * MMU 0 is used for the scratchpad (i.e. FG and BG colors).
-	 *
-	 * MMU 1 is used for the Imagewrite buffers. This code assumes those
-	 * buffers are back-to-back, with AccelImageWriteBufferOffsets[0]
-	 * being the first, and don't exceed 8kb (aperture size) in total
-	 * length.
-	 */
-	pTseng->scratchMemBase = pTseng->FbBase + 0x18000L;
-	MMIO_OUT32(pTseng->MMioBase, 0x00<<0, pTseng->AccelColorBufferOffset);
-	MMIO_OUT32(pTseng->MMioBase, 0x04<<0, pTseng->AccelImageWriteBufferOffsets[0]);
-	/*
-	 * tsengCPU2ACLBase is used for CPUtoSCreen...() operations on < ET6000 devices
-	 */
-	pTseng->tsengCPU2ACLBase = pTseng->FbBase + 0x1C000L;	/* MMU aperture 2 */
-	/*      MMIO_IN32(pTseng->MMioBase, 0x08<<0) = 200000; *//* TEST */
-    }
+    pTseng->scratchMemBase = pTseng->FbBase + pTseng->AccelColorBufferOffset;
+    /* 
+     * we won't be using tsengCPU2ACLBase in linear memory mode anyway, since
+     * using the MMU apertures restricts the amount of useable video memory
+     * to only 2MB, supposing we ONLY redirect MMU aperture 2 to the CPU.
+     * (see data book W32p, page 207)
+     */
+    pTseng->tsengCPU2ACLBase = pTseng->FbBase + 0x200000;	/* MMU aperture 2 */
+
 #ifdef DEBUG    
     ErrorF("MMioBase = 0x%x, scratchMemBase = 0x%x\n", pTseng->MMioBase, pTseng->scratchMemBase);
 #endif
@@ -187,7 +169,7 @@ tseng_init_acl(ScrnInfoPtr pScrn)
 
     MMU_CONTROL(0x74);
 
-    if ((pTseng->ChipType == ET4000) && pTseng->UseLinMem) {
+    if (pTseng->ChipType == ET4000) {
 	/*
 	 * Since the w32p revs C and D don't have any memory mapped when the
 	 * accelerator registers are used it is necessary to use the MMUs to

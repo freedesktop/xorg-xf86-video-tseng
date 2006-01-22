@@ -158,7 +158,6 @@ typedef enum {
     OPTION_W32_INTERLEAVE,
     OPTION_NOACCEL,
     OPTION_NOCLOCKCHIP,
-    OPTION_LINEAR,
     OPTION_SHOWCACHE,
     OPTION_LEGEND,
     OPTION_PCI_RETRY,
@@ -188,8 +187,6 @@ static const OptionInfoRec TsengOptions[] =
     {OPTION_NOACCEL, "NoAccel", OPTV_BOOLEAN,
 	{0}, FALSE},
     {OPTION_NOCLOCKCHIP, "NoClockchip", OPTV_BOOLEAN,
-	{0}, FALSE},
-    {OPTION_LINEAR, "Linear", OPTV_BOOLEAN,
 	{0}, FALSE},
     {OPTION_SHOWCACHE, "ShowCache", OPTV_BOOLEAN,
 	{0}, FALSE},
@@ -541,8 +538,6 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
 	    (unsigned long)pTseng->IOAddress);
     }
 
-    pTseng->LinFbAddressMask = 0xFF000000;
-
     return TRUE;
 }
 
@@ -727,12 +722,7 @@ TsengLimitMem(ScrnInfoPtr pScrn, int ram)
 {
     TsengPtr pTseng = TsengPTR(pScrn);
 
-    if (pTseng->UseLinMem && pTseng->Linmem_1meg) {
-	ram = TsengDoMemLimit(pScrn, ram, 1024,
-			      "in linear mode on "
-			      "this VGA board/bus configuration");
-    }
-    if (pTseng->UseAccel && pTseng->UseLinMem) {
+    if (pTseng->UseAccel) {
 	if (pTseng->ChipType == ET4000) {
 	    /* <= W32p_ab :
 	     *   2 MB direct access + 2*512kb via apertures MBP0 and MBP1
@@ -943,26 +933,6 @@ TsengProcessOptions(ScrnInfoPtr pScrn)
 	xf86GetOptValBool(pTseng->Options, OPTION_PCI_BURST, &pTseng->PCIBurst)) )
 	    xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Forcing PCI burst mode %s.\n",
 	    pTseng->PCIBurst ? "ON" : "OFF");
-    from = X_CONFIG;
-    if (xf86GetOptValBool(pTseng->Options, OPTION_LINEAR, &pTseng->UseLinMem)) {
-	/* check if linear mode is allowed */
-	if (pTseng->UseLinMem) {
-            if (!xf86LinearVidMem()) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "This operating system does not support a linear framebuffer.\n");
-		pTseng->UseLinMem = FALSE;
-	    }
-	}
-    } else {
-	/* option not specified: use defaults */
-	from = X_DEFAULT;
-	if (pTseng->PciTag)
-	    pTseng->UseLinMem = TRUE;      /* use linear memory by default on PCI systems */
-	else
-	    pTseng->UseLinMem = FALSE;     /* ... and banked on non-PCI systems */
-    }
-    xf86DrvMsg(pScrn->scrnIndex, from, "Using %s Memory.\n",
-	(pTseng->UseLinMem) ? "linear" : "banked");
 
     pTseng->ShowCache = FALSE;
     if (xf86ReturnOptValBool(pTseng->Options, OPTION_SHOWCACHE, FALSE)) {
@@ -998,58 +968,24 @@ TsengProcessOptions(ScrnInfoPtr pScrn)
 }
 
 static Bool
-TsengGetLinFbAddress(ScrnInfoPtr pScrn)
+TsengGetFbAddress(ScrnInfoPtr pScrn)
 {
-    MessageType from;
     TsengPtr pTseng = TsengPTR(pScrn);
-    resRange range[] = { {ResExcMemBlock|ResBus,0,0},_END };
 
-    PDEBUG("	TsengGetLinFbAddress\n");
+    PDEBUG("	TsengGetFbAddress\n");
 
-    /* let config file override Base address */
-    if (pTseng->pEnt->device->MemBase != 0) {
-	pTseng->LinFbAddress = pTseng->pEnt->device->MemBase;
-	from = X_CONFIG;
-	/* check for possible errors in given linear base address */
-	if ((pTseng->LinFbAddress & (~pTseng->LinFbAddressMask)) != 0) {
-	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		"MemBase out of range. Must be <= 0x%lx on 0x%lx boundary.\n",
-		pTseng->LinFbAddressMask, ~(pTseng->LinFbAddressMask | 0xFF000000) + 1);
-	    pTseng->LinFbAddress &= ~pTseng->LinFbAddressMask;
-	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "    Clipping MemBase to: 0x%lx.\n",
-		pTseng->LinFbAddress);
-	    range[0].rBegin = pTseng->LinFbAddress;
-	    range[0].rEnd = pTseng->LinFbAddress + 16 * 1024 * 1024;
-	    if (xf86RegisterResources(pTseng->pEnt->index,range,ResNone)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "    Cannot register linear memory."
-			   " Using banked mode instead.\n");
-		pTseng->UseLinMem = FALSE;
-		return TRUE;
-	    }
-	}
-    } else {
-	from = X_PROBED;
-        /*
-         * base0 is the framebuffer and base1 is the PCI IO space.
-         */
-        if ((pTseng->PciInfo->memBase[0]) != 0) {
-            pTseng->LinFbAddress = pTseng->PciInfo->memBase[0];
-        } else {
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                       "No valid Framebuffer address in PCI config space;\n");
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                       "    Falling back to banked mode.\n");
-            pTseng->UseLinMem = FALSE;
-            return TRUE;
-        }
-        if (xf86RegisterResources(pTseng->pEnt->index,NULL,ResNone)) {
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                       "    Cannot register linear memory."
-                       " Using banked mode instead.\n");
-            pTseng->UseLinMem = FALSE;
-            return TRUE;
-        }
+    /* base0 is the framebuffer and base1 is the PCI IO space. */
+    if (!pTseng->PciInfo->memBase[0]) {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                   "No valid Framebuffer address in PCI config space;\n");
+        return FALSE;
+    } else
+        pTseng->FbAddress = pTseng->PciInfo->memBase[0];
+
+
+    if (xf86RegisterResources(pTseng->pEnt->index,NULL,ResNone)) {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Cannot register FB memory.\n");
+        return FALSE;
     }
 
     /* The W32 linear map address space is always 4Mb (mainly because the
@@ -1067,8 +1003,8 @@ TsengGetLinFbAddress(ScrnInfoPtr pScrn)
     else
 	pTseng->FbMapSize = 4096 * 1024;
 
-    xf86DrvMsg(pScrn->scrnIndex, from, "Linear framebuffer at 0x%lX\n",
-	(unsigned long)pTseng->LinFbAddress);
+    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Framebuffer at 0x%lX\n",
+               (unsigned long)pTseng->FbAddress);
 
     return TRUE;
 }
@@ -1296,11 +1232,10 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
     if (!TsengProcessOptions(pScrn))   /* must be done _after_ we know what chip this is */
 	return FALSE;
 
-    if (pTseng->UseLinMem) {
-	if (!TsengGetLinFbAddress(pScrn))
-	    return FALSE;
-    }
-    pScrn->memPhysBase = pTseng->LinFbAddress;
+    if (!TsengGetFbAddress(pScrn))
+        return FALSE;
+
+    pScrn->memPhysBase = pTseng->FbAddress;
     pScrn->fbOffset = 0;
 
     if (pTseng->UseAccel)
@@ -1308,14 +1243,12 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
     else
 	VGAHWPTR(pScrn)->MapSize = 0x10000;
 
-    if (pTseng->UseLinMem) {
-	/*
-	 * XXX At least part of this range does appear to be disabled,
-	 * but to play safe, it is marked as "unused" for now.
-	 * Changed this to "disable". Otherwise it might interfere with DGA.
-	 */
-	xf86SetOperatingState(resVgaMem, pTseng->pEnt->index, ResDisableOpr);
-    }
+    /*
+     * XXX At least part of this range does appear to be disabled,
+     * but to play safe, it is marked as "unused" for now.
+     * Changed this to "disable". Otherwise it might interfere with DGA.
+     */
+    xf86SetOperatingState(resVgaMem, pTseng->pEnt->index, ResDisableOpr);
     
     /* hibit processing (TsengProcessOptions() must have been called first) */
     pTseng->save_divide = 0x40;	       /* default */
@@ -1532,13 +1465,8 @@ TsengSetupAccelMemory(int scrnIndex, ScreenPtr pScreen)
      * [ FIXME: why here double-buffering and in colexp triple-buffering? ]
      */
     req_videoram = 2 * (pScrn->virtualX * pTseng->Bytesperpixel);
-    /* banked mode uses an 8kb aperture for imagewrite */
-    if ((req_videoram > 8192) && (!pTseng->UseLinMem)) {
-	xf86DrvMsgVerb(pScrn->scrnIndex, X_WARNING, v,
-	    "Accelerated ImageWrites disabled (banked %dbpp virtual width must be <= %d)\n",
-	    pScrn->bitsPerPixel, 8192 / (2 * pTseng->Bytesperpixel));
-	pTseng->AccelImageWriteBufferOffsets[0] = 0;
-    } else if (offscreen_videoram < req_videoram) {
+
+    if (offscreen_videoram < req_videoram) {
 	xf86DrvMsgVerb(pScrn->scrnIndex, X_WARNING, v,
 	    "Accelerated ImageWrites disabled (%d more bytes of free video memory required)\n",
 	    req_videoram - offscreen_videoram);
@@ -1661,32 +1589,6 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     if (pScrn->depth >= 8)
         TsengDGAInit(pScreen);
-
-    /*
-     * If banking is needed, initialise an miBankInfoRec (defined in
-     * "mibank.h"), and call miInitializeBanking().
-     */
-
-    if (!pTseng->UseLinMem) {
-	if (pScrn->videoRam > 1024) {
-	    pTseng->BankInfo.SetSourceBank = ET4000W32SetRead;
-	    pTseng->BankInfo.SetDestinationBank = ET4000W32SetWrite;
-	    pTseng->BankInfo.SetSourceAndDestinationBanks = ET4000W32SetReadWrite;
-	} else {
-	    pTseng->BankInfo.SetSourceBank = ET4000SetRead;
-	    pTseng->BankInfo.SetDestinationBank = ET4000SetWrite;
-	    pTseng->BankInfo.SetSourceAndDestinationBanks = ET4000SetReadWrite;
-	}
-	pTseng->BankInfo.pBankA = pTseng->FbBase;
-	pTseng->BankInfo.pBankB = pTseng->FbBase;
-	pTseng->BankInfo.BankSize = 0x10000;
-	pTseng->BankInfo.nBankDepth = (pScrn->depth == 4) ? 1 : pScrn->depth;
-
-	if (!miInitializeBanking(pScreen, pScrn->virtualX, pScrn->virtualY,
-		pScrn->displayWidth, &pTseng->BankInfo)) {
-	    return FALSE;
-	}
-    }
 
     /*
      * Initialize the acceleration interface.
@@ -1859,45 +1761,28 @@ TsengMapMem(ScrnInfoPtr pScrn)
 	return FALSE;
     }
 
-    if (pTseng->UseLinMem) {
-	pTseng->FbBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_FRAMEBUFFER,
-	    pTseng->PciTag,
-	    (unsigned long)pTseng->LinFbAddress,
-	    pTseng->FbMapSize);
-	if (pTseng->FbBase == NULL) {
-	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		"Could not mmap linear video memory.\n");
-	    return FALSE;
-	}
-	if (pTseng->UseAccel) {
-	  pTseng->MMioBase = xf86MapPciMem(pScrn->scrnIndex, 
-					   VIDMEM_MMIO,
-					   pTseng->PciTag,
-					   (unsigned long)pTseng->LinFbAddress,
-					   pTseng->FbMapSize);
-	  if (!pTseng->MMioBase) {
+    pTseng->FbBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_FRAMEBUFFER,
+                                   pTseng->PciTag,
+                                   (unsigned long)pTseng->FbAddress,
+                                   pTseng->FbMapSize);
+    if (pTseng->FbBase == NULL) {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                   "Could not mmap linear video memory.\n");
+        return FALSE;
+    }
+
+    /* need some sanity here */
+    if (pTseng->UseAccel) {
+        pTseng->MMioBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO,
+                                         pTseng->PciTag,
+                                         (unsigned long)pTseng->FbAddress,
+                                         pTseng->FbMapSize);
+        if (!pTseng->MMioBase) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		       "Could not mmap mmio memory.\n");
 	    return FALSE;
-	  }
-	  pTseng->MMioBase += 0x3FFF00L;
-	}
-    } else {
-        vgaHWPtr hwp = VGAHWPTR(pScrn);
-	pTseng->FbBase = hwp->Base;
-	if (pTseng->UseAccel) {
-	    pTseng->MMioBase = xf86MapPciMem(pScrn->scrnIndex, 
-					     VIDMEM_MMIO,
-					     pTseng->PciTag,
-					     (unsigned long)hwp->MapPhys,
-					     hwp->MapSize);
-	    if (!pTseng->MMioBase) {
-	      xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			 "Could not mmap mmio memory.\n");
-	      return FALSE;
-	    }
-	    pTseng->MMioBase += 0x1FF00L;
-	}
+        }
+        pTseng->MMioBase += 0x3FFF00L;
     }
     
     if (pTseng->FbBase == NULL)
@@ -1913,9 +1798,8 @@ TsengUnmapMem(ScrnInfoPtr pScrn)
 
     PDEBUG("	TsengUnmapMem\n");
 
-    if (pTseng->UseLinMem) {
-	xf86UnMapVidMem(pScrn->scrnIndex, (pointer) pTseng->FbBase, pTseng->FbMapSize);
-    }
+    xf86UnMapVidMem(pScrn->scrnIndex, (pointer) pTseng->FbBase, pTseng->FbMapSize);
+
     vgaHWUnmapMem(pScrn);
 
     pTseng->FbBase = NULL;
@@ -2201,22 +2085,13 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      */
 
     if (pTseng->ChipType == ET6000) {
-	if (pTseng->UseLinMem) {
-	    new->ET6K_13 = pTseng->LinFbAddress >> 24;
-	    new->ET6K_40 |= 0x09;
-	} else {
-	    new->ET6K_40 &= ~0x09;
-	}
+        new->ET6K_13 = pTseng->FbAddress >> 24;
+        new->ET6K_40 |= 0x09;
     } else {			       /* et4000 style linear memory */
-	if (pTseng->UseLinMem) {
-	    new->CR36 |= 0x10;
-            new->CR30 = (pTseng->LinFbAddress >> 22) & 0xFF;
-	    hwp->ModeReg.Graphics[6] &= ~0x0C;
-	    new->ExtIMACtrl &= ~0x01;  /* disable IMA port (to get >1MB lin mem) */
-	} else {
-	    new->CR36 &= ~0x10;
-            new->CR30 = 0x00;
-	}
+        new->CR36 |= 0x10;
+        new->CR30 = (pTseng->FbAddress >> 22) & 0xFF;
+        hwp->ModeReg.Graphics[6] &= ~0x0C;
+        new->ExtIMACtrl &= ~0x01;  /* disable IMA port (to get >1MB lin mem) */
     }
 
     /*
@@ -2244,14 +2119,10 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
      */
 
     if (pTseng->UseAccel) {
-	if (pTseng->ChipType == ET6000) {
-	    if (pTseng->UseLinMem)
-		new->ET6K_40 |= 0x02;	/* MMU can't be used here (causes system hang...) */
-	    else
-		new->ET6K_40 |= 0x06;	/* MMU is needed in banked accelerated mode */
-	} else {
+	if (pTseng->ChipType == ET6000)
+            new->ET6K_40 |= 0x02;	/* MMU can't be used here (causes system hang...) */
+	else
 	    new->CR36 |= 0x28;
-	}
     }
     vgaHWUnlock(hwp);		       /* TODO: is this needed (tsengEnterVT does this) */
     /* Program the registers */
@@ -2753,16 +2624,12 @@ ET4000Probe()
 	 * 
 	 */
 
-        if (pTseng->Linmem_1meg && pTseng->UseLinMem) {
-	    tseng_use_ACL = FALSE;
-	} else {
-            /* enable acceleration-related options */
-            OFLG_SET(OPTION_NOACCEL, &TSENG.ChipOptionFlags);
-            OFLG_SET(OPTION_PCI_RETRY, &TSENG.ChipOptionFlags);
-            OFLG_SET(OPTION_SHOWCACHE, &TSENG.ChipOptionFlags);
+        /* enable acceleration-related options */
+        OFLG_SET(OPTION_NOACCEL, &TSENG.ChipOptionFlags);
+        OFLG_SET(OPTION_PCI_RETRY, &TSENG.ChipOptionFlags);
+        OFLG_SET(OPTION_SHOWCACHE, &TSENG.ChipOptionFlags);
 
-            tseng_use_ACL = !OFLG_ISSET(OPTION_NOACCEL, &vga256InfoRec.options);
-        }
+        tseng_use_ACL = !OFLG_ISSET(OPTION_NOACCEL, &vga256InfoRec.options);
 
 	...
 
@@ -2778,9 +2645,8 @@ ET4000Probe()
 	}
     }
     /* if (pScrn->bitsPerPixel >= 8) */
-    else {
+    /* else */ {
 	OFLG_CLR(OPTION_HW_CURSOR, &vga256InfoRec.options);
-	pTseng->UseLinMem = FALSE;
 	tseng_use_ACL = FALSE;
     }
 

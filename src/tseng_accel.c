@@ -202,19 +202,6 @@ TsengXAAInit(ScreenPtr pScreen)
 		pTseng->FbBase + pTseng->AccelImageWriteBufferOffsets[i];
 	}
 
-	/*
-	 * for banked memory, translate those addresses to fall in the
-	 * correct aperture. Imagewrite uses aperture #1, which sits at
-	 * pTseng->FbBase + 0x1A000.
-	 */
-	if (!pTseng->UseLinMem) {
-	    for (i = 0; i < pXAAinfo->NumScanlineImageWriteBuffers; i++) {
-		pTseng->XAAScanlineImageWriteBuffers[i] =
-		    pTseng->XAAScanlineImageWriteBuffers[i]
-		    - pTseng->AccelImageWriteBufferOffsets[0]
-		    + 0x1A000;
-	    }
-	}
 	pXAAinfo->ScanlineImageWriteBuffers = pTseng->XAAScanlineImageWriteBuffers;
     }
 #endif

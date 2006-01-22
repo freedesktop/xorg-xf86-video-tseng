@@ -1,5 +1,22 @@
 2006-01-22  Luc Verhaegen  <libv@skynet.be>
 
+	* src/Makefile.am:
+	* src/tseng.h:
+	* src/tseng_accel.c: (TsengXAAInit):
+	* src/tseng_acl.c: (tseng_init_acl):
+	* src/tseng_bank.c:
+	* src/tseng_colexp.c: (TsengXAAInit_Colexp):
+	* src/tseng_cursor.c: (TsengHWCursorInit):
+	* src/tseng_dga.c: (TsengDGAInit), (Tseng_OpenFramebuffer):
+	* src/tseng_driver.c: (TsengPreInitPCI), (TsengLimitMem),
+	(TsengProcessOptions), (TsengGetFbAddress), (TsengPreInit),
+	(TsengSetupAccelMemory), (TsengScreenInit), (TsengMapMem),
+	(TsengUnmapMem), (TsengModeInit):
+
+	Tseng in the PCI era: Remove banked memory.
+
+2006-01-22  Luc Verhaegen  <libv@skynet.be>
+
 	* configure.ac:
 	* src/tseng.h:
 	* src/tseng_accel.c: (TsengXAAInit), (Tseng_setup_screencopy):

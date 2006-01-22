@@ -35,22 +35,6 @@ TsengHWCursorInit(ScreenPtr pScreen)
     pTseng->HWCursorBuffer =
 	pTseng->FbBase + pTseng->HWCursorBufferOffset;
 
-    /*
-     * for banked memory, translate this address to fall in the
-     * correct aperture. HWcursor uses aperture #0, which sits at
-     * pTseng->FbBase + 0x18000.
-     */
-    if (!pTseng->UseLinMem) {
-#ifdef TODO
-	pTseng->HWCursorBuffer =
-	    pTseng->something
-	    - pTseng->what
-	    + 0x18000;
-#else
-	ErrorF("banked HW cursor not implemented yet!\n");
-#endif
-    }
-
     /* set up the XAA HW cursor structure */
     infoPtr->MaxWidth = 64;
     infoPtr->MaxHeight = 64;
