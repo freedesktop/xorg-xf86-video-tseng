@@ -1,10 +1,6 @@
 
 /* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng.h,v 1.37tsi Exp $ */
 
-
-
-
-
 #ifndef _TSENG_H
 #define _TSENG_H
 
@@ -47,12 +43,6 @@
 #include "xaalocal.h"
 #include "xf86Cursor.h"
 #include "xf86fbman.h"
-
-
-/* functions in tseng_driver.c needed outside it */
-void TsengBlankScreen(ScrnInfoPtr pScrn, Bool unblank);
-void TsengProtect(ScrnInfoPtr pScrn, Bool on);
-
 
 #define MAX_TSENG_CLOCK 86000	       /* default max clock for standard boards */
 
@@ -212,42 +202,24 @@ typedef struct {
 
 #define TsengPTR(p) ((TsengPtr)((p)->driverPrivate))
 
-/*
- * tseng_driver.c for DGA
- */
-Bool TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
-void TsengAdjustFrame(int scrnIndex, int x, int y, int flags);
+/* tseng_accel.c */
+void tseng_init_acl(ScrnInfoPtr pScrn);
+Bool TsengXAAInit(ScreenPtr pScreen);
 
-/*
- * tseng_dga.c
- */
-Bool TsengDGAInit(ScreenPtr pScreen);
-
-/*
- * From tseng_clocks.c
- */
-void tseng_clock_setup(ScrnInfoPtr pScrn);
-void TsengcommonCalcClock(long freq,
-    int min_m, int min_n1, int max_n1, int min_n2, int max_n2,
-    long freq_min, long freq_max,
-    unsigned char *mdiv, unsigned char *ndiv);
-
-/*
- * From tseng_ramdac.c
- */
-Bool TsengRAMDACProbe(ScrnInfoPtr pScrn);
-void tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode);
-
-/*
- * From tseng_cursor.c
- */
-
+/* tseng_cursor.c */
 Bool TsengHWCursorInit(ScreenPtr pScreen);
 
-/*
- * From tseng_dpms.c
- */
+/* tseng_dga.c */
+Bool TsengDGAInit(ScreenPtr pScreen);
 
+/* tseng_mode.c */
+Bool TsengRAMDACProbe(ScrnInfoPtr pScrn);
+void tseng_clock_setup(ScrnInfoPtr pScrn);
+Bool TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
+void TsengAdjustFrame(int scrnIndex, int x, int y, int flags);
+ModeStatus TsengValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags);
+void TsengSave(ScrnInfoPtr pScrn);
+void TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg, int flags);
 void TsengHVSyncDPMSSet(ScrnInfoPtr pScrn, int PowerManagementMode, int flags);
 void TsengCrtcDPMSSet(ScrnInfoPtr pScrn, int PowerManagementMode, int flags);
 

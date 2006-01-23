@@ -1,3 +1,44 @@
+2006-01-23  Luc Verhaegen  <libv@skynet.be>
+
+	* src/Makefile.am:
+	* src/tseng.h:
+	* src/tseng_accel.c: (tseng_terminate_acl),
+	(tseng_recover_timeout), (tseng_init_acl),
+	(TsengSubsequentScanlineCPUToScreenColorExpandFill),
+	(TsengSubsequentColorExpandScanline),
+	(TsengSubsequentColorExpandScanline_8bpp),
+	(TsengSubsequentColorExpandScanline_16bpp),
+	(TsengSubsequentColorExpandScanline_24bpp),
+	(TsengSubsequentColorExpandScanline_32bpp),
+	(TsengSetupForCPUToScreenColorExpandFill),
+	(TsengSubsequentCPUToScreenColorExpandFill),
+	(TsengSetupForScreenToScreenColorExpandFill),
+	(TsengSubsequentScreenToScreenColorExpandFill),
+	(TsengXAAInit_Colexp), (TsengXAAInit):
+	* src/tseng_accel.h:
+	* src/tseng_acl.c:
+	* src/tseng_acl.h:
+	* src/tseng_clock.c:
+	* src/tseng_colexp.c:
+	* src/tseng_dpms.c:
+	* src/tseng_driver.c: (TsengSaveScreen), (TsengSwitchMode):
+	* src/tseng_inline.h:
+	* src/tseng_mode.c: (vgaHWReadDacWriteAddr), (tsengSTG170xDetect),
+	(tsengCH8398Detect), (TsengRAMDACProbe), (tseng_set_ramdac_bpp),
+	(tseng_clock_setup), (TsengcommonCalcClock), (TsengAdjustFrame),
+	(TsengValidMode), (TsengSave), (TsengRestore), (TsengModeInit),
+	(TsengCrtcDPMSSet), (TsengHVSyncDPMSSet):
+	* src/tseng_ramdac.c:
+	
+	Reorganise code:
+	- move tseng_ramdac.c, tseng_clock.c, tseng_dpms.c, and
+	  TsengAdjustFrame, TsengValidMode, TsengSave, TsengRestore,
+	  TsengModeInit from tseng_driver.c into tseng_mode.c.
+	- move tseng_acl.c and tseng_colexp.c into tseng_accel.c
+	- move tseng_acl.h and tseng_inline.g into tseng_accel.h
+	- move all accel functions except for 2 to static, ifdef
+	  out unused ones.
+
 2006-01-22  Luc Verhaegen  <libv@skynet.be>
 
 	* .cvsignore:
