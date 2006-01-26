@@ -108,7 +108,7 @@ typedef struct {
     CARD8 ET6K_13, ET6K_40, ET6K_41;
     CARD8 ET6K_44, ET6K_46, ET6K_58;
 
-    CARD8 ExtIMACtrl; /* IMA port control register (0x217B index 0xF7) */
+    CARD8 CursorCtrl;
     PllState pll; /* registers in GenDAC-like RAMDAC */
 
     CARD8 ATTdac_cmd;         /* command register for ATT 49x DACs */
@@ -150,7 +150,7 @@ typedef struct {
     memType FbAddress;
     unsigned char *FbBase;
     long FbMapSize;
-    CARD32 IOAddress; /* PCI config space base address for ET6000 */
+    CARD32 ET6000IOAddress; /* PCI config space base address for ET6000 */
     char * MMioBase;
 
     int MinClock;
@@ -208,9 +208,24 @@ Bool TsengXAAInit(ScreenPtr pScreen);
 
 /* tseng_cursor.c */
 Bool TsengHWCursorInit(ScreenPtr pScreen);
+void TsengCursorStore(ScrnInfoPtr pScrn, TsengRegPtr Reg);
+void TsengCursorRestore(ScrnInfoPtr pScrn, TsengRegPtr Reg);
 
 /* tseng_dga.c */
 Bool TsengDGAInit(ScreenPtr pScreen);
+
+/* some IO abstractions
+ * May seem daft when you're worked in on this driver but it makes all the
+ * difference when coming back after a while or when new to it.
+ */
+void vgaHWWriteBank(vgaHWPtr hwp, CARD8 value);
+CARD8 vgaHWReadBank(vgaHWPtr hwp);
+void vgaHWWriteSegment(vgaHWPtr hwp, CARD8 value);
+CARD8 vgaHWReadSegment(vgaHWPtr hwp);
+void vgaHWWriteModeControl(vgaHWPtr hwp, CARD8 value);
+void vgaHWHerculesSecondPage(vgaHWPtr hwp, Bool Enable);
+CARD8 ET6000IORead(TsengPtr pTseng, CARD8 Offset);
+void ET6000IOWrite(TsengPtr pTseng, CARD8 Offset, CARD8 Value);
 
 /* tseng_mode.c */
 Bool TsengRAMDACProbe(ScrnInfoPtr pScrn);

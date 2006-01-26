@@ -41,6 +41,119 @@ vgaHWReadDacWriteAddr(vgaHWPtr hwp)
 	return inb(hwp->PIOOffset + VGA_DAC_WRITE_ADDR);
 }
 
+static CARD8
+vgaHWReadDacReadAddr(vgaHWPtr hwp)
+{
+    if (hwp->MMIOBase)
+	return MMIO_IN8(hwp->MMIOBase, hwp->MMIOOffset + VGA_DAC_READ_ADDR);
+    else
+	return inb(hwp->PIOOffset + VGA_DAC_READ_ADDR);
+}
+
+#define VGA_BANK 0x3CB
+
+void
+vgaHWWriteBank(vgaHWPtr hwp, CARD8 value)
+{
+    if (hwp->MMIOBase)
+	MMIO_OUT8(hwp->MMIOBase, hwp->MMIOOffset + VGA_BANK, value);
+    else
+	outb(hwp->PIOOffset + VGA_BANK, value);
+}
+
+CARD8
+vgaHWReadBank(vgaHWPtr hwp)
+{
+    if (hwp->MMIOBase)
+	return MMIO_IN8(hwp->MMIOBase, hwp->MMIOOffset + VGA_BANK);
+    else
+	return inb(hwp->PIOOffset + VGA_BANK);
+}
+
+#define VGA_SEGMENT 0x3CD
+
+void
+vgaHWWriteSegment(vgaHWPtr hwp, CARD8 value)
+{
+    if (hwp->MMIOBase)
+	MMIO_OUT8(hwp->MMIOBase, hwp->MMIOOffset + VGA_SEGMENT, value);
+    else
+	outb(hwp->PIOOffset + VGA_SEGMENT, value);
+}
+
+CARD8
+vgaHWReadSegment(vgaHWPtr hwp)
+{
+    if (hwp->MMIOBase)
+	return MMIO_IN8(hwp->MMIOBase, hwp->MMIOOffset + VGA_SEGMENT);
+    else
+	return inb(hwp->PIOOffset + VGA_SEGMENT);
+}
+
+/*
+ * 0x3D8 Tseng Display Mode Control
+ */
+#define VGA_MODE_CONTROL 0x08
+
+void
+vgaHWWriteModeControl(vgaHWPtr hwp, CARD8 value)
+{
+    if (hwp->MMIOBase)
+        MMIO_OUT8(hwp->MMIOBase,
+                  hwp->MMIOOffset + hwp->IOBase + VGA_MODE_CONTROL, value);
+    else  
+        outb(hwp->IOBase + hwp->PIOOffset + VGA_MODE_CONTROL, value);
+}
+
+/*
+ * 0x3BF: Hercules compatibility mode. 
+ * Enable/Disable Second page (B800h-BFFFh)
+ */
+
+#define VGA_HERCULES 0x3BF
+
+void
+vgaHWHerculesSecondPage(vgaHWPtr hwp, Bool Enable)
+{
+    CARD8 tmp;
+
+    if (hwp->MMIOBase) {
+        tmp = MMIO_IN8(hwp->MMIOBase, hwp->MMIOOffset + VGA_HERCULES);
+
+        if (Enable)
+            tmp |= 0x02;
+        else
+            tmp &= ~0x02;
+
+        MMIO_OUT8(hwp->MMIOBase, hwp->MMIOOffset + VGA_HERCULES, tmp);
+    } else {
+        tmp = inb(hwp->PIOOffset + VGA_HERCULES);
+
+        if (Enable)
+            tmp |= 0x02;
+        else
+            tmp &= ~0x02;
+
+        outb(hwp->PIOOffset + VGA_HERCULES, tmp);
+    }
+}
+
+/*
+ * ET6000 IO Range handling.
+ *
+ */
+CARD8
+ET6000IORead(TsengPtr pTseng, CARD8 Offset)
+{
+    return inb(pTseng->ET6000IOAddress + Offset);
+}
+
+void
+ET6000IOWrite(TsengPtr pTseng, CARD8 Offset, CARD8 Value)
+{
+    outb(pTseng->ET6000IOAddress + Offset, Value);
+}
+
 /*
  *
  * RAMDAC handling.
@@ -145,10 +258,10 @@ TsengRAMDACProbe(ScrnInfoPtr pScrn)
         int dbyte;
 
         /* There are some limits here though: 80000 <= MemClk <= 110000 */
-        (void) inb(pTseng->IOAddress + 0x67);
-        outb(pTseng->IOAddress + 0x67, 10);
-        mclk = (inb(pTseng->IOAddress + 0x69) + 2) * 14318;
-        dbyte = inb(pTseng->IOAddress + 0x69);
+        ET6000IORead(pTseng, 0x67);
+        ET6000IOWrite(pTseng, 0x67, 0x0A);
+        mclk = (ET6000IORead(pTseng, 0x69) + 2) * 14318;
+        dbyte = ET6000IORead(pTseng, 0x69);
         mclk /= ((dbyte & 0x1f) + 2) * (1 << ((dbyte >> 5) & 0x03));
         pTseng->MemClk = mclk;
 
@@ -211,7 +324,8 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
 
         /* ATC index 0x16 -- bits-per-PCLK */
         pTseng->ModeReg.ExtATC &= 0xCF;
-        pTseng->ModeReg.ExtATC |= 0x20;
+        if (PixMux)
+            pTseng->ModeReg.ExtATC |= 0x20;
 
         switch (pTseng->RAMDAC) {
         case STG1703:
@@ -541,15 +655,14 @@ TsengAdjustFrame(int scrnIndex, int x, int y, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     TsengPtr pTseng = TsengPTR(pScrn);
-    int iobase = VGAHWPTR(pScrn)->IOBase;
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
     int Base;
 
     PDEBUG("	TsengAdjustFrame\n");
 
-    if (pTseng->ShowCache) {
-	if (y)
-	    y += 256;
-    }
+    if (pTseng->ShowCache && y)
+        y += 256;
+
     if (pScrn->bitsPerPixel < 8)
 	Base = (y * pScrn->displayWidth + x + 3) >> 3;
     else {
@@ -558,10 +671,9 @@ TsengAdjustFrame(int scrnIndex, int x, int y, int flags)
 	Base -= (Base % pTseng->Bytesperpixel);
     }
 
-    outw(iobase + 4, (Base & 0x00FF00) | 0x0C);
-    outw(iobase + 4, ((Base & 0x00FF) << 8) | 0x0D);
-    outw(iobase + 4, ((Base & 0x0F0000) >> 8) | 0x33);
-
+    hwp->writeCrtc(hwp, 0x0C, (Base >> 8) & 0xFF);
+    hwp->writeCrtc(hwp, 0x0D, Base & 0xFF);
+    hwp->writeCrtc(hwp, 0x33, (Base >> 16) & 0x0F);
 }
 
 /*
@@ -594,15 +706,15 @@ TsengValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags)
 void
 TsengSave(ScrnInfoPtr pScrn)
 {
-    unsigned char temp, saveseg1 = 0, saveseg2 = 0;
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
     TsengPtr pTseng = TsengPTR(pScrn);
     vgaRegPtr vgaReg;
     TsengRegPtr tsengReg;
-    int iobase = VGAHWPTR(pScrn)->IOBase;
+    unsigned char temp, saveseg1 = 0, saveseg2 = 0;
 
     PDEBUG("	TsengSave\n");
 
-    vgaReg = &VGAHWPTR(pScrn)->SavedReg;
+    vgaReg = &hwp->SavedReg;
     tsengReg = &pTseng->SavedReg;
 
     /*
@@ -615,52 +727,44 @@ TsengSave(ScrnInfoPtr pScrn)
      * we need this here , cause we MUST disable the ROM SYNC feature
      * this bit changed with W32p_rev_c...
      */
-    outb(iobase + 4, 0x34);
-    temp = inb(iobase + 5);
+    temp = hwp->readCrtc(hwp, 0x34);
     tsengReg->CR34 = temp;
+
     if ((pTseng->ChipType == ET4000) &&
         ((pTseng->ChipRev == REV_A) || (pTseng->ChipRev == REV_B))) {
 #ifdef OLD_CODE
-	outb(iobase + 5, temp & 0x1F);
+	hwp->writeCrtc(hwp, 0x34, temp & 0x1F);
 #else
 	/* data books say translation ROM is controlled by bits 4 and 5 */
-	outb(iobase + 5, temp & 0xCF);
+	hwp->writeCrtc(hwp, 0x34, temp & 0xCF);
 #endif
     }
 
-    saveseg1 = inb(0x3CD);
-    outb(0x3CD, 0x00);		       /* segment select 1 */
+    saveseg1 = vgaHWReadSegment(hwp);
+    vgaHWWriteSegment(hwp, 0x00); /* segment select 1 */
 
-    saveseg2 = inb(0x3CB);
-    outb(0x3CB, 0x00);	       /* segment select 2 */
+    saveseg2 = vgaHWReadBank(hwp);
+    vgaHWWriteBank(hwp, 0x00); /* segment select 2 */
 
     tsengReg->ExtSegSel[0] = saveseg1;
     tsengReg->ExtSegSel[1] = saveseg2;
 
-    outb(iobase + 4, 0x33);
-    tsengReg->CR33 = inb(iobase + 5);
-    outb(iobase + 4, 0x35);
-    tsengReg->CR35 = inb(iobase + 5);
-    if (pTseng->ChipType == ET4000) {
-	outb(iobase + 4, 0x36);
-	tsengReg->CR36 = inb(iobase + 5);
-	outb(iobase + 4, 0x37);
-	tsengReg->CR37 = inb(iobase + 5);
-	outb(0x217a, 0xF7);
-	tsengReg->ExtIMACtrl = inb(0x217b);
+    tsengReg->CR33 = hwp->readCrtc(hwp, 0x33);
+    tsengReg->CR35 = hwp->readCrtc(hwp, 0x35);
 
-	outb(iobase + 4, 0x32);
-	tsengReg->CR32 = inb(iobase + 5);
+    if (pTseng->ChipType == ET4000) {
+	tsengReg->CR36 = hwp->readCrtc(hwp, 0x36);
+	tsengReg->CR37 = hwp->readCrtc(hwp, 0x37);
+	tsengReg->CR32 = hwp->readCrtc(hwp, 0x32);
     }
-    outb(0x3C4, 6);
-    tsengReg->SR06 = inb(0x3C5);
-    outb(0x3C4, 7);
-    tsengReg->SR07 = inb(0x3C5);
-    tsengReg->SR07 |= 0x14;
-    temp = inb(iobase + 0x0A);	       /* reset flip-flop */
-    outb(0x3C0, 0x36);
-    tsengReg->ExtATC = inb(0x3C1);
-    outb(0x3C0, tsengReg->ExtATC);
+
+    TsengCursorStore(pScrn, tsengReg);
+
+    tsengReg->SR06 = hwp->readSeq(hwp, 0x06);
+    tsengReg->SR07 = hwp->readSeq(hwp, 0x07) | 0x14;
+
+    tsengReg->ExtATC = hwp->readAttr(hwp, 0x36);
+    hwp->writeAttr(hwp, 0x36, tsengReg->ExtATC);
 
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
@@ -671,16 +775,16 @@ TsengSave(ScrnInfoPtr pScrn)
              * field names are not really good.
              */
             
-            outb(0x3C8, 0);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            tsengReg->pll.cmd_reg = inb(0x3C6); /* Enhanced command register */
-            outb(0x3C8, 0);
+            hwp->writeDacWriteAddr(hwp, 0x00);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            tsengReg->pll.cmd_reg = hwp->readDacMask(hwp); /* Enhanced command register */
+            hwp->writeDacWriteAddr(hwp, 0x00);
 
-            tsengReg->pll.f2_M = STG1703getIndex(0x24);		/* f2 PLL M divider */
-            tsengReg->pll.f2_N = inb(0x3c6);	/* f2 PLL N1/N2 divider */
+            tsengReg->pll.f2_M = STG1703getIndex(0x24);	/* f2 PLL M divider */
+            tsengReg->pll.f2_N = hwp->readDacMask(hwp);	/* f2 PLL N1/N2 divider */
 
             tsengReg->pll.ctrl = STG1703getIndex(0x03);	/* pixel mode select control */
             tsengReg->pll.timingctrl = STG1703getIndex(0x05);	/* pll timing control */
@@ -689,71 +793,74 @@ TsengSave(ScrnInfoPtr pScrn)
 #endif
             break;
         case CH8398:
-            outb(0x3C8, 0);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            tsengReg->pll.cmd_reg = inb(0x3C6); /* Enhanced command register */
-            outb(0x3C8, 0);
+            hwp->writeDacWriteAddr(hwp, 0x00);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            tsengReg->pll.cmd_reg = hwp->readDacMask(hwp); /* Enhanced command register */
+            hwp->writeDacWriteAddr(hwp, 0x00);
 
-            inb(0x3c8);
-            inb(0x3c6);
-            inb(0x3c6);
-            inb(0x3c6);
-            inb(0x3c6);
-            inb(0x3c6);
-            tsengReg->pll.timingctrl = inb(0x3c6);
+            vgaHWReadDacWriteAddr(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            tsengReg->pll.timingctrl = hwp->readDacMask(hwp);
+
             /* Save PLL */
-            outb(iobase + 4, 0x31);
-            temp = inb(iobase + 5);
-            outb(iobase + 5, temp | (1 << 6));	/* set RS2 through CS3 */
+            temp = hwp->readCrtc(hwp, 0x31);
+            hwp->writeCrtc(hwp, 0x31, temp | (1 << 6));	/* set RS2 through CS3 */
+
             /* We are in ClockRAM mode 0x3c7 = CRA, 0x3c8 = CWA, 0x3c9 = CDR */
-            tsengReg->pll.r_idx = inb(0x3c7);
-            tsengReg->pll.w_idx = inb(0x3c8);
-            outb(0x3c7, 10);
-            tsengReg->pll.f2_N = inb(0x3c9);
-            tsengReg->pll.f2_M = inb(0x3c9);
-            outb(0x3c7, tsengReg->pll.r_idx);
-            inb(0x3c8);		       /* loop to Clock Select Register */
-            inb(0x3c8);
-            inb(0x3c8);
-            inb(0x3c8);
-            tsengReg->pll.ctrl = inb(0x3c8);
-            outb(iobase + 4, 0x31);
-            outb(iobase + 5, temp);
+            tsengReg->pll.r_idx = vgaHWReadDacReadAddr(hwp);
+            tsengReg->pll.w_idx = vgaHWReadDacWriteAddr(hwp);
+            hwp->writeDacReadAddr(hwp, 10);
+            tsengReg->pll.f2_N = hwp->readDacData(hwp);
+            tsengReg->pll.f2_M = hwp->readDacData(hwp);
+            hwp->writeDacReadAddr(hwp, tsengReg->pll.r_idx);
+            /* !!! DAC_WRITE_ADDR is probably wrong here */
+            vgaHWReadDacWriteAddr(hwp);  /* loop to Clock Select Register */
+            vgaHWReadDacWriteAddr(hwp);
+            vgaHWReadDacWriteAddr(hwp);
+            vgaHWReadDacWriteAddr(hwp);
+            tsengReg->pll.ctrl = vgaHWReadDacWriteAddr(hwp);
+
+            hwp->writeCrtc(hwp, 0x31, temp);
             break;
         default:
             break;
 	}
     } else {
 	/* Save ET6000 CLKDAC PLL registers */
-	temp = inb(pTseng->IOAddress + 0x67);	/* remember old CLKDAC index register pointer */
-	outb(pTseng->IOAddress + 0x67, 2);
-	tsengReg->pll.f2_M = inb(pTseng->IOAddress + 0x69);
-	tsengReg->pll.f2_N = inb(pTseng->IOAddress + 0x69);
+	temp = ET6000IORead(pTseng, 0x67); /* remember old CLKDAC index register pointer */
+
+	ET6000IOWrite(pTseng, 0x67, 0x02);
+	tsengReg->pll.f2_M = ET6000IORead(pTseng, 0x69);
+	tsengReg->pll.f2_N = ET6000IORead(pTseng, 0x69);
+
 	/* save MClk values */
-	outb(pTseng->IOAddress + 0x67, 10);
-	tsengReg->pll.MClkM = inb(pTseng->IOAddress + 0x69);
-	tsengReg->pll.MClkN = inb(pTseng->IOAddress + 0x69);
+	ET6000IOWrite(pTseng, 0x67, 0x0A);
+	tsengReg->pll.MClkM = ET6000IORead(pTseng, 0x69);
+	tsengReg->pll.MClkN = ET6000IORead(pTseng, 0x69);
+
 	/* restore old index register */
-	outb(pTseng->IOAddress + 0x67, temp);
+	ET6000IOWrite(pTseng, 0x67, temp);
     }
 
     if (pTseng->ChipType == ET6000) {
-	tsengReg->ET6K_13 = inb(pTseng->IOAddress + 0x13);
-	tsengReg->ET6K_40 = inb(pTseng->IOAddress + 0x40);
-	tsengReg->ET6K_58 = inb(pTseng->IOAddress + 0x58);
-	tsengReg->ET6K_41 = inb(pTseng->IOAddress + 0x41);
-	tsengReg->ET6K_44 = inb(pTseng->IOAddress + 0x44);
-	tsengReg->ET6K_46 = inb(pTseng->IOAddress + 0x46);
+	tsengReg->ET6K_13 = ET6000IORead(pTseng, 0x13);
+	tsengReg->ET6K_40 = ET6000IORead(pTseng, 0x40);
+	tsengReg->ET6K_58 = ET6000IORead(pTseng, 0x58);
+	tsengReg->ET6K_41 = ET6000IORead(pTseng, 0x41);
+	tsengReg->ET6K_44 = ET6000IORead(pTseng, 0x44);
+	tsengReg->ET6K_46 = ET6000IORead(pTseng, 0x46);
     }
-    outb(iobase + 4, 0x30);
-    tsengReg->CR30 = inb(iobase + 5);
-    outb(iobase + 4, 0x31);
-    tsengReg->CR31 = inb(iobase + 5);
-    outb(iobase + 4, 0x3F);
-    tsengReg->CR3F = inb(iobase + 5);
+
+    tsengReg->CR30 = hwp->readCrtc(hwp, 0x30);
+    tsengReg->CR31 = hwp->readCrtc(hwp, 0x31);
+    tsengReg->CR3F = hwp->readCrtc(hwp, 0x3F);
 }
 
 /*
@@ -763,18 +870,16 @@ void
 TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
 	     int flags)
 {
-    TsengPtr pTseng;
-    unsigned char tmp;
-    int iobase = VGAHWPTR(pScrn)->IOBase;
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    TsengPtr pTseng = TsengPTR(pScrn);
+    CARD8 tmp;
 
     PDEBUG("	TsengRestore\n");
 
-    pTseng = TsengPTR(pScrn);
-
     vgaHWProtect(pScrn, TRUE);
 
-    outb(0x3CD, 0x00);		       /* segment select bits 0..3 */
-    outb(0x3CB, 0x00);	       /* segment select bits 4,5 */
+    vgaHWWriteSegment(hwp, 0x00);		       /* segment select bits 0..3 */
+    vgaHWWriteBank(hwp, 0x00); /* segment select bits 4,5 */
 
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
@@ -786,60 +891,61 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
              */
             
 	    STG1703setIndex(0x24, tsengReg->pll.f2_M);
-	    outb(0x3c6, tsengReg->pll.f2_N);	/* use autoincrement */
+	    hwp->writeDacMask(hwp, tsengReg->pll.f2_N); /* use autoincrement */
 
-            STG1703setIndex(0x03, tsengReg->pll.ctrl);	/* primary pixel mode */
-            outb(0x3c6, tsengReg->pll.ctrl);	/* secondary pixel mode */
-            outb(0x3c6, tsengReg->pll.timingctrl);	/* pipeline timing control */
-            usleep(500);		       /* 500 usec PLL settling time required */
+            STG1703setIndex(0x03, tsengReg->pll.ctrl); /* primary pixel mode */
+            hwp->writeDacMask(hwp, tsengReg->pll.ctrl); /* secondary pixel mode */
+            hwp->writeDacMask(hwp, tsengReg->pll.timingctrl); /* pipeline timing control */
+            usleep(500); /* 500 usec PLL settling time required */
 
             STG1703magic(0);
 
-            outb(0x3C8, 0);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            outb(0x3C6, tsengReg->pll.cmd_reg); /* write enh command reg */
-            outb(0x3C8, 0);
+            hwp->writeDacWriteAddr(hwp, 0x00);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->writeDacMask(hwp, tsengReg->pll.cmd_reg); /* write enh command reg */
+            hwp->writeDacWriteAddr(hwp, 0x00);
 #else
-             xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
+            xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
 #endif
             break;
         case CH8398:
-            outb(0x3C8, 0);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            (void)inb(0x3C6);
-            outb(0x3C6, tsengReg->pll.cmd_reg); /* write enh command reg */
+            hwp->writeDacWriteAddr(hwp, 0x00);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->writeDacMask(hwp, tsengReg->pll.cmd_reg); /* write enh command reg */
             
-            inb(0x3c8);
-            inb(0x3c6);
-            inb(0x3c6);
-            inb(0x3c6);
-            inb(0x3c6);
-            inb(0x3c6);
-            outb(0x3c6, tsengReg->pll.timingctrl);
+            vgaHWReadDacWriteAddr(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->readDacMask(hwp);
+            hwp->writeDacMask(hwp, tsengReg->pll.timingctrl);
 
-	    outb(iobase + 4, 0x31);
-	    tmp = inb(iobase + 5);
-	    outb(iobase + 5, tmp | (1 << 6));		/* Set RS2 through CS3 */
+	    tmp = hwp->readCrtc(hwp, 0x31);
+	    hwp->writeCrtc(hwp, 0x31, tmp | (1 << 6)); /* Set RS2 through CS3 */
+
 	    /* We are in ClockRAM mode 0x3c7 = CRA, 0x3c8 = CWA, 0x3c9 = CDR */
-	    outb(0x3c7, tsengReg->pll.r_idx);
-	    outb(0x3c8, 10);
-	    outb(0x3c9, tsengReg->pll.f2_N);
-	    outb(0x3c9, tsengReg->pll.f2_M);
-	    outb(0x3c8, tsengReg->pll.w_idx);
+	    hwp->writeDacReadAddr(hwp, tsengReg->pll.r_idx);
+	    hwp->writeDacWriteAddr(hwp, 0x0A);
+	    hwp->writeDacData(hwp, tsengReg->pll.f2_N);
+	    hwp->writeDacData(hwp, tsengReg->pll.f2_M);
+	    hwp->writeDacWriteAddr(hwp, tsengReg->pll.w_idx);
 	    usleep(500);
-	    inb(0x3c7);		       /* reset sequence */
-	    inb(0x3c8);		       /* loop to Clock Select Register */
-	    inb(0x3c8);
-	    inb(0x3c8);
-	    inb(0x3c8);
-	    outb(0x3c8, tsengReg->pll.ctrl);
-	    outb(iobase + 4, 0x31);
-	    outb(iobase + 5, (tmp & 0x3F));
+	    vgaHWReadDacReadAddr(hwp); /* reset sequence */
+            /* !!! DAC_WRITE_ADDR is probably wrong here */
+	    vgaHWReadDacWriteAddr(hwp); /* loop to Clock Select Register */
+	    vgaHWReadDacWriteAddr(hwp);
+	    vgaHWReadDacWriteAddr(hwp);
+	    vgaHWReadDacWriteAddr(hwp);
+	    hwp->writeDacWriteAddr(hwp, tsengReg->pll.ctrl);
+
+            hwp->writeCrtc(hwp, 0x31, tmp & 0x3F);
             break;
         default:
             break;
@@ -847,10 +953,12 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
     } else {
 
 	/* Restore ET6000 CLKDAC PLL registers */
-	tmp = inb(pTseng->IOAddress + 0x67);	/* remember old CLKDAC index register pointer */
-	outb(pTseng->IOAddress + 0x67, 2);
-	outb(pTseng->IOAddress + 0x69, tsengReg->pll.f2_M);
-	outb(pTseng->IOAddress + 0x69, tsengReg->pll.f2_N);
+	tmp = ET6000IORead(pTseng, 0x67);  /* remember old CLKDAC index register pointer */
+
+	ET6000IOWrite(pTseng, 0x67, 0x02);
+	ET6000IOWrite(pTseng, 0x69, tsengReg->pll.f2_M);
+	ET6000IOWrite(pTseng, 0x69, tsengReg->pll.f2_N);
+
 	/* set MClk values if needed, but don't touch them if not needed
          *
          * Since setting the MClk to highly illegal value results in a
@@ -861,44 +969,47 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
             xf86Msg(X_ERROR, "Internal Error in MClk registers: MClkM=0x%x, MClkN=0x%x\n",
 		    tsengReg->pll.MClkM, tsengReg->pll.MClkN);
         } else {
-            outb(pTseng->IOAddress + 0x67, 10);
-            outb(pTseng->IOAddress + 0x69, tsengReg->pll.MClkM);
-            outb(pTseng->IOAddress + 0x69, tsengReg->pll.MClkN);
+            ET6000IOWrite(pTseng, 0x67, 10);
+            ET6000IOWrite(pTseng, 0x69, tsengReg->pll.MClkM);
+            ET6000IOWrite(pTseng, 0x69, tsengReg->pll.MClkN);
 	}
 	/* restore old index register */
-	outb(pTseng->IOAddress + 0x67, tmp);
+        ET6000IOWrite(pTseng, 0x67, tmp);
     }
 
     if (pTseng->ChipType == ET6000) {
-	outb(pTseng->IOAddress + 0x13, tsengReg->ET6K_13);
-	outb(pTseng->IOAddress + 0x40, tsengReg->ET6K_40);
-	outb(pTseng->IOAddress + 0x58, tsengReg->ET6K_58);
-	outb(pTseng->IOAddress + 0x41, tsengReg->ET6K_41);
-	outb(pTseng->IOAddress + 0x44, tsengReg->ET6K_44);
-	outb(pTseng->IOAddress + 0x46, tsengReg->ET6K_46);
+	ET6000IOWrite(pTseng, 0x13, tsengReg->ET6K_13);
+	ET6000IOWrite(pTseng, 0x40, tsengReg->ET6K_40);
+	ET6000IOWrite(pTseng, 0x58, tsengReg->ET6K_58);
+	ET6000IOWrite(pTseng, 0x41, tsengReg->ET6K_41);
+	ET6000IOWrite(pTseng, 0x44, tsengReg->ET6K_44);
+	ET6000IOWrite(pTseng, 0x46, tsengReg->ET6K_46);
     }
-    outw(iobase + 4, (tsengReg->CR3F << 8) | 0x3F);
-    outw(iobase + 4, (tsengReg->CR30 << 8) | 0x30);
-    outw(iobase + 4, (tsengReg->CR31 << 8) | 0x31);
+
+    hwp->writeCrtc(hwp, 0x3F, tsengReg->CR3F);
+    hwp->writeCrtc(hwp, 0x30, tsengReg->CR30);
+    hwp->writeCrtc(hwp, 0x31, tsengReg->CR31);
+
     vgaHWRestore(pScrn, vgaReg, flags); /* TODO: does this belong HERE, in the middle? */
-    outw(0x3C4, (tsengReg->SR06 << 8) | 0x06);
-    outw(0x3C4, (tsengReg->SR07 << 8) | 0x07);
-    tmp = inb(iobase + 0x0A);	       /* reset flip-flop */
-    outb(0x3C0, 0x36);
-    outb(0x3C0, tsengReg->ExtATC);
-    outw(iobase + 4, (tsengReg->CR33 << 8) | 0x33);
-    outw(iobase + 4, (tsengReg->CR34 << 8) | 0x34);
-    outw(iobase + 4, (tsengReg->CR35 << 8) | 0x35);
+
+    hwp->writeSeq(hwp, 0x06, tsengReg->SR06);
+    hwp->writeSeq(hwp, 0x07, tsengReg->SR07);
+
+    hwp->writeAttr(hwp, 0x36, tsengReg->ExtATC);
+
+    hwp->writeCrtc(hwp, 0x33, tsengReg->CR33);
+    hwp->writeCrtc(hwp, 0x34, tsengReg->CR34);
+    hwp->writeCrtc(hwp, 0x35, tsengReg->CR35);
 
     if (pTseng->ChipType == ET4000) {
-	outw(iobase + 4, (tsengReg->CR37 << 8) | 0x37);
-	outw(0x217a, (tsengReg->ExtIMACtrl << 8) | 0xF7);
-
-	outw(iobase + 4, (tsengReg->CR32 << 8) | 0x32);
+        hwp->writeCrtc(hwp, 0x37, tsengReg->CR37);
+	hwp->writeCrtc(hwp, 0x32, tsengReg->CR32);
     }
 
-    outb(0x3CD, tsengReg->ExtSegSel[0]);
-    outb(0x3CB, tsengReg->ExtSegSel[1]);
+    TsengCursorRestore(pScrn, tsengReg);
+
+    vgaHWWriteSegment(hwp, tsengReg->ExtSegSel[0]);
+    vgaHWWriteBank(hwp, tsengReg->ExtSegSel[1]);
 
     vgaHWProtect(pScrn, FALSE);
 
@@ -908,7 +1019,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
      * also resets the linear mode bits in CRTC 0x36.
      */
     if (pTseng->ChipType == ET4000)
-	outw(iobase + 4, (tsengReg->CR36 << 8) | 0x36);
+	hwp->writeCrtc(hwp, 0x36, tsengReg->CR36);
 }
 
 /*
@@ -1169,7 +1280,6 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     /*
      * linear mode handling
      */
-
     if (pTseng->ChipType == ET6000) {
         new->ET6K_13 = pTseng->FbAddress >> 24;
         new->ET6K_40 |= 0x09;
@@ -1177,7 +1287,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
         new->CR36 |= 0x10;
         new->CR30 = (pTseng->FbAddress >> 22) & 0xFF;
         hwp->ModeReg.Graphics[6] &= ~0x0C;
-        new->ExtIMACtrl &= ~0x01;  /* disable IMA port (to get >1MB lin mem) */
+        new->CursorCtrl &= ~0x01;  /* disable IMA port (to get >1MB lin mem) */
     }
 
     /*
@@ -1226,11 +1336,10 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
  * '97 Harald Nordgård Hansen
  */
 void
-TsengCrtcDPMSSet(ScrnInfoPtr pScrn,
-    int PowerManagementMode, int flags)
+TsengCrtcDPMSSet(ScrnInfoPtr pScrn, int PowerManagementMode, int flags)
 {
-    unsigned char seq1, crtc34;
-    int iobase = VGAHWPTR(pScrn)->IOBase;
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    CARD8 seq1, crtc34;
 
     xf86EnableAccess(pScrn);
     switch (PowerManagementMode) {
@@ -1256,12 +1365,12 @@ TsengCrtcDPMSSet(ScrnInfoPtr pScrn,
 	crtc34 = 0x21;
 	break;
     }
-    outb(0x3C4, 0x01);		       /* Select SEQ1 */
-    seq1 |= inb(0x3C5) & ~0x20;
-    outb(0x3C5, seq1);
-    outb(iobase + 4, 0x34);	       /* Select CRTC34 */
-    crtc34 |= inb(iobase + 5) & ~0x21;
-    outb(iobase + 5, crtc34);
+
+    seq1 |= hwp->readSeq(hwp, 0x01) & ~0x20;
+    hwp->writeSeq(hwp, 0x01, seq1);
+
+    crtc34 |= hwp->readCrtc(hwp, 0x34) & ~0x21;
+    hwp->writeCrtc(hwp, 0x34, crtc34);
 }
 
 /*
@@ -1308,52 +1417,44 @@ void
 TsengHVSyncDPMSSet(ScrnInfoPtr pScrn,
     int PowerManagementMode, int flags)
 {
-    unsigned char seq1, tmpb;
-    unsigned int HSync, VSync, HTot, VTot, tmp;
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    CARD8 seq1, tmpb;
+    CARD32 HSync, VSync, HTot, VTot, tmp;
     Bool chgHSync, chgVSync;
-    int iobase = VGAHWPTR(pScrn)->IOBase;
 
     /* Code here to read the current values of HSync through VTot:
      *  HSYNC:
      *    bits 0..7 : CRTC index 0x04
      *    bit 8     : CRTC index 0x3F, bit 4
      */
-    outb(iobase + 4, 0x04);
-    HSync = inb(iobase + 5);
-    outb(iobase + 4, 0x3F);
-    HSync += (inb(iobase + 5) & 0x10) << 4;
+    HSync = hwp->readCrtc(hwp, 0x04);
+    HSync += (hwp->readCrtc(hwp, 0x3F) & 0x10) << 4;
+
     /*  VSYNC:
      *    bits 0..7 : CRTC index 0x10
      *    bits 8..9 : CRTC index 0x07 bits 2 (VSYNC bit 8) and 7 (VSYNC bit 9)
      *    bit 10    : CRTC index 0x35 bit 3
      */
-    outb(iobase + 4, 0x10);
-    VSync = inb(iobase + 5);
-    outb(iobase + 4, 0x07);
-    tmp = inb(iobase + 5);
+    VSync = hwp->readCrtc(hwp, 0x10);
+    tmp = hwp->readCrtc(hwp, 0x07);
     VSync += ((tmp & 0x04) << 6) + ((tmp & 0x80) << 2);
-    outb(iobase + 4, 0x35);
-    VSync += (inb(iobase + 5) & 0x08) << 7;
+    VSync += (hwp->readCrtc(hwp, 0x35) & 0x08) << 7;
+
     /*  HTOT:
      *    bits 0..7 : CRTC index 0x00.
      *    bit 8     : CRTC index 0x3F, bit 0
      */
-    outb(iobase + 4, 0x00);
-    HTot = inb(iobase + 5);
-    outb(iobase + 4, 0x3F);
-    HTot += (inb(iobase + 5) & 0x01) << 8;
+    HTot = hwp->readCrtc(hwp, 0x00);
+    HTot += (hwp->readCrtc(hwp, 0x3F) & 0x01) << 8;
     /*  VTOT:
      *    bits 0..7 : CRTC index 0x06
      *    bits 8..9 : CRTC index 0x07 bits 0 (VTOT bit 8) and 5 (VTOT bit 9)
      *    bit 10    : CRTC index 0x35 bit 1
      */
-    outb(iobase + 4, 0x06);
-    VTot = inb(iobase + 5);
-    outb(iobase + 4, 0x07);
-    tmp = inb(iobase + 5);
+    VTot = hwp->readCrtc(hwp, 0x06);
+    tmp = hwp->readCrtc(hwp, 0x07);
     VTot += ((tmp & 0x01) << 8) + ((tmp & 0x20) << 4);
-    outb(iobase + 4, 0x35);
-    VTot += (inb(iobase + 5) & 0x02) << 9;
+    VTot += (hwp->readCrtc(hwp, 0x35) & 0x02) << 9;
 
     /* Don't write these unless we have to. */
     chgHSync = chgVSync = FALSE;
@@ -1417,9 +1518,8 @@ TsengHVSyncDPMSSet(ScrnInfoPtr pScrn,
     }
     /* The code to turn on and off video output is equal for all. */
     if (chgHSync || chgVSync) {
-	outb(0x3C4, 0x01);	       /* Select SEQ1 */
-	seq1 |= inb(0x3C5) & ~0x20;
-	outb(0x3C5, seq1);
+	seq1 |= hwp->readSeq(hwp, 0x01) & ~0x20;
+	hwp->writeSeq(hwp, 0x01, seq1);
     }
     /* Then the code to write VSync and HSync to the card.
      *  HSYNC:
@@ -1427,13 +1527,12 @@ TsengHVSyncDPMSSet(ScrnInfoPtr pScrn,
      *    bit 8     : CRTC index 0x3F, bit 4
      */
     if (chgHSync) {
-	outb(iobase + 4, 0x04);
 	tmpb = HSync & 0xFF;
-	outb(iobase + 5, tmpb);
-	outb(iobase + 4, 0x3F);
+	hwp->writeCrtc(hwp, 0x04, tmpb);
+
 	tmpb = (HSync & 0x100) >> 4;
-	tmpb |= inb(iobase + 5) & ~0x10;
-	outb(iobase + 5, tmpb);
+	tmpb |= hwp->readCrtc(hwp, 0x3F) & ~0x10;
+        hwp->writeCrtc(hwp, 0x3F, tmpb);
     }
     /*  VSYNC:
      *    bits 0..7 : CRTC index 0x10
@@ -1441,17 +1540,16 @@ TsengHVSyncDPMSSet(ScrnInfoPtr pScrn,
      *    bit 10    : CRTC index 0x35 bit 3
      */
     if (chgVSync) {
-	outb(iobase + 4, 0x10);
 	tmpb = VSync & 0xFF;
-	outb(iobase + 5, tmpb);
-	outb(iobase + 4, 0x07);
+	hwp->writeCrtc(hwp, 0x10, tmpb);
+
 	tmpb = (VSync & 0x100) >> 6;
 	tmpb |= (VSync & 0x200) >> 2;
-	tmpb |= inb(iobase + 5) & ~0x84;
-	outb(iobase + 5, tmpb);
-	outb(iobase + 4, 0x35);
+	tmpb |= hwp->readCrtc(hwp, 0x07) & ~0x84;
+	hwp->writeCrtc(hwp, 0x07, tmpb);
+
 	tmpb = (VSync & 0x400) >> 7;
-	tmpb |= inb(iobase + 5) & ~0x08;
-	outb(iobase + 5, tmpb);
+	tmpb |= hwp->readCrtc(hwp, 0x35) & ~0x08;
+	hwp->writeCrtc(hwp, 0x35, tmpb);
     }
 }

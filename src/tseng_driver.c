@@ -79,8 +79,8 @@ static void TsengFreeScreen(int scrnIndex, int flags);
 /* Internally used functions (some are defined in tseng.h) */
 static Bool TsengMapMem(ScrnInfoPtr pScrn);
 static Bool TsengUnmapMem(ScrnInfoPtr pScrn);
-static void TsengUnlock(void);
-static void TsengLock(void);
+static void TsengUnlock(ScrnInfoPtr pScrn);
+static void TsengLock(ScrnInfoPtr pScrn);
 
 /*
  * This is intentionally screen-independent.  It indicates the binding
@@ -336,33 +336,35 @@ TsengIdentify(int flags)
 
 /* unlock ET4000 using KEY register */
 static void
-TsengUnlock(void)
+TsengUnlock(ScrnInfoPtr pScrn)
 {
-    unsigned char temp;
-    int iobase = VGAHW_GET_IOBASE();
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    CARD8 tmp;
 
     PDEBUG("	TsengUnlock\n");
-    outb(0x3BF, 0x03);
-    outb(iobase + 8, 0xA0);
-    outb(iobase + 4, 0x11);
-    temp = inb(iobase + 5);
-    outb(iobase + 5, temp & 0x7F);
+
+    vgaHWHerculesSecondPage(hwp, TRUE);
+    vgaHWWriteModeControl(hwp, 0xA0);
+
+    tmp = hwp->readCrtc(hwp, 0x11);
+    hwp->writeCrtc(hwp, 0x11, tmp & 0x7F);
 }
 
 /* lock ET4000 using KEY register. FIXME: should restore old lock status instead */
 static void
-TsengLock(void)
+TsengLock(ScrnInfoPtr pScrn)
 {
-    unsigned char temp;
-    int iobase = VGAHW_GET_IOBASE();
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    CARD8 tmp;
 
     PDEBUG("	TsengLock\n");
-    outb(iobase + 4, 0x11);
-    temp = inb(iobase + 5);
-    outb(iobase + 5, temp | 0x80);
-    outb(iobase + 8, 0x00);
-    outb(0x3D8, 0x29);
-    outb(0x3BF, 0x01);
+
+    tmp = hwp->readCrtc(hwp, 0x11);
+    hwp->writeCrtc(hwp, 0x11, tmp | 0x80);
+
+    vgaHWWriteModeControl(hwp, 0x00);
+    vgaHWWriteModeControl(hwp, 0x29);
+    vgaHWHerculesSecondPage(hwp, FALSE);
 }
 
 static Bool
@@ -448,7 +450,6 @@ TsengProbe(DriverPtr drv, int flags)
 static Bool
 TsengPreInitPCI(ScrnInfoPtr pScrn)
 {
-    MessageType from;
     TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengPreInitPCI\n");
@@ -503,21 +504,16 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
 
     /* only the ET6000 implements a PCI IO address */
     if (pTseng->ChipType == ET6000) {
-	if (pTseng->pEnt->device->IOBase != 0) {
-	    pTseng->IOAddress = pTseng->pEnt->device->IOBase;
-	    from = X_CONFIG;
-	} else {
-	    if ((pTseng->PciInfo->ioBase[1]) != 0) {
-		pTseng->IOAddress = pTseng->PciInfo->ioBase[1];
-		from = X_PROBED;
-	    } else {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		    "No valid PCI I/O address in PCI config space\n");
-		return FALSE;
-	    }
-	}
-	xf86DrvMsg(pScrn->scrnIndex, from, "PCI I/O registers at 0x%lX\n",
-	    (unsigned long)pTseng->IOAddress);
+        if (!pTseng->PciInfo->ioBase[1]) {
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                       "No valid PCI I/O address in PCI config space\n");
+            return FALSE;
+        }
+
+        pTseng->ET6000IOAddress = pTseng->PciInfo->ioBase[1];
+        
+        xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "ET6000 PCI I/O registers at 0x%lX\n",
+                   (unsigned long)pTseng->ET6000IOAddress);
     }
 
     return TRUE;
@@ -543,12 +539,13 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
 #define SEGSIZE (64)		       /* kb */
 
 #define ET6K_SETSEG(seg) \
-	outb(0x3CB, ((seg) & 0x30) | ((seg) >> 4)); \
-	outb(0x3CD, ((seg) & 0x0f) | ((seg) << 4));
+    vgaHWWriteBank(hwp, ((seg) & 0x30) | ((seg) >> 4));\
+    vgaHWWriteSegment(hwp, ((seg) & 0x0f) | ((seg) << 4));
 
 static int
 et6000_check_videoram(ScrnInfoPtr pScrn, int ram)
 {
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
     unsigned char oldSegSel1, oldSegSel2, oldGR5, oldGR6, oldSEQ2, oldSEQ4;
     int segment, i;
     int real_ram = 0;
@@ -579,26 +576,20 @@ et6000_check_videoram(ScrnInfoPtr pScrn, int ram)
      * registers we modify, of course.
      */
 
-    oldSegSel1 = inb(0x3CD);
-    oldSegSel2 = inb(0x3CB);
-    outb(0x3CE, 5);
-    oldGR5 = inb(0x3CF);
-    outb(0x3CE, 6);
-    oldGR6 = inb(0x3CF);
-    outb(0x3C4, 2);
-    oldSEQ2 = inb(0x3C5);
-    outb(0x3C4, 4);
-    oldSEQ4 = inb(0x3C5);
+    oldSegSel1 = vgaHWReadSegment(hwp);
+    oldSegSel2 = vgaHWReadBank(hwp);
+
+    oldGR5 = hwp->readGr(hwp, 0x05);
+    oldGR6 = hwp->readGr(hwp, 0x06);
+
+    oldSEQ2 = hwp->readSeq(hwp, 0x02);
+    oldSEQ4 = hwp->readSeq(hwp, 0x04);
 
     /* set graphics mode */
-    outb(0x3CE, 6);
-    outb(0x3CF, 5);
-    outb(0x3CE, 5);
-    outb(0x3CF, 0x40);
-    outb(0x3C4, 2);
-    outb(0x3C5, 0x0f);
-    outb(0x3C4, 4);
-    outb(0x3C5, 0x0e);
+    hwp->writeGr(hwp, 0x06, 0x05);
+    hwp->writeGr(hwp, 0x05, 0x40);
+    hwp->writeSeq(hwp, 0x02, 0x0F);
+    hwp->writeSeq(hwp, 0x04, 0x0E);
 
     /*
      * count down from presumed amount of memory in SEGSIZE steps, and
@@ -635,8 +626,11 @@ et6000_check_videoram(ScrnInfoPtr pScrn, int ram)
 	for (i = segment - 1; i >= 0; i--) {
 	    /* select the segment */
 	    ET6K_SETSEG(i);
-	    outb(0x3CB, (i & 0x30) | (i >> 4));
-	    outb(0x3CD, (i & 0x0f) | (i << 4));
+
+            /* again? */
+	    vgaHWWriteBank(hwp, (i & 0x30) | (i >> 4));
+	    vgaHWWriteSegment(hwp, (i & 0x0f) | (i << 4));
+
 	    if (*VIDMEM == 0x5555AAAA) {
 		/*
 		 * Seems like address wrap, but there could of course be
@@ -664,16 +658,13 @@ et6000_check_videoram(ScrnInfoPtr pScrn, int ram)
     }
 
     /* restore original register contents */
-    outb(0x3CD, oldSegSel1);
-    outb(0x3CB, oldSegSel2);
-    outb(0x3CE, 5);
-    outb(0x3CF, oldGR5);
-    outb(0x3CE, 6);
-    outb(0x3CF, oldGR6);
-    outb(0x3C4, 2);
-    outb(0x3C5, oldSEQ2);
-    outb(0x3C4, 4);
-    outb(0x3C5, oldSEQ4);
+    vgaHWWriteSegment(hwp, oldSegSel1);
+    vgaHWWriteBank(hwp, oldSegSel2);
+                 
+    hwp->writeGr(hwp, 0x05, oldGR5);
+    hwp->writeGr(hwp, 0x06, oldGR6);
+    hwp->writeSeq(hwp, 0x02, oldSEQ2);
+    hwp->writeSeq(hwp, 0x04, oldSEQ4);
 
     vgaHWUnmapMem(pScrn);
     return real_ram;
@@ -746,24 +737,24 @@ TsengLimitMem(ScrnInfoPtr pScrn, int ram)
  *      try to find amount of video memory installed.
  *
  */
-
 static int
 TsengDetectMem(ScrnInfoPtr pScrn)
 {
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    TsengPtr pTseng = TsengPTR(pScrn);
     unsigned char config;
     int ramtype = 0;
     int ram = 0;
-    TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengDetectMem\n");
     if (pTseng->ChipType == ET6000) {
-	ramtype = inb(0x3C2) & 0x03;
+	ramtype = hwp->readST00(hwp) & 0x03;
 	switch (ramtype) {
 	case 0x03:		       /* MDRAM */
 	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 		"Video memory type: Multibank DRAM (MDRAM).\n");
-	    ram = ((inb(pTseng->IOAddress + 0x47) & 0x07) + 1) * 8 * 32;	/* number of 8 32kb banks  */
-	    if (inb(pTseng->IOAddress + 0x45) & 0x04) {
+	    ram = ((ET6000IORead(pTseng, 0x47) & 0x07) + 1) * 8 * 32;	/* number of 8 32kb banks  */
+	    if (ET6000IORead(pTseng, 0x45) & 0x04) {
 		ram <<= 1;
 	    }
 	    /*
@@ -775,7 +766,7 @@ TsengDetectMem(ScrnInfoPtr pScrn)
 	case 0x00:		       /* DRAM -- VERY unlikely on ET6000 cards, IMPOSSIBLE on ET6100 */
 	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 		"Video memory type: Standard DRAM.\n");
-	    ram = 1024 << (inb(pTseng->IOAddress + 0x45) & 0x03);
+	    ram = 1024 << (ET6000IORead(pTseng, 0x45) & 0x03);
 	    break;
 	default:		       /* unknown RAM type */
 	    xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
@@ -784,19 +775,15 @@ TsengDetectMem(ScrnInfoPtr pScrn)
 	    ram = 1024;
 	}
     } else {
-	int iobase = VGAHWPTR(pScrn)->IOBase;
-
-	outb(iobase + 0x04, 0x37);
-	config = inb(iobase + 0x05);
-
+	config = hwp->readCrtc(hwp, 0x37);
+        
 	ram = 128 << (config & 0x03);
 
 	if (config & 0x80)
 	    ram <<= 1;
 
 	/* Check for interleaving on W32i/p. */
-        outb(iobase + 0x04, 0x32);
-        config = inb(iobase + 0x05);
+        config = hwp->readCrtc(hwp, 0x32);
         if (config & 0x80) {
             ram <<= 1;
             xf86DrvMsg(pScrn->scrnIndex, X_INFO,
@@ -812,10 +799,9 @@ TsengDetectMem(ScrnInfoPtr pScrn)
 static Bool
 TsengProcessHibit(ScrnInfoPtr pScrn)
 {
+    TsengPtr pTseng = TsengPTR(pScrn);
     MessageType from = X_CONFIG;
     int hibit_mode_width;
-    int iobase;
-    TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengProcessHibit\n");
     if (xf86IsOptionSet(pTseng->Options, OPTION_HIBIT_HIGH)) {
@@ -828,20 +814,22 @@ TsengProcessHibit(ScrnInfoPtr pScrn)
     } else if (xf86IsOptionSet(pTseng->Options, OPTION_HIBIT_HIGH)) {
 	pTseng->save_divide = 0;
     } else {
+        vgaHWPtr hwp = VGAHWPTR(pScrn);
+
 	from = X_PROBED;
+
 	/* first check to see if hibit is probed from low-res mode */
-	iobase = VGAHWPTR(pScrn)->IOBase;
-	outb(iobase + 4, 1);
-	hibit_mode_width = inb(iobase + 5) + 1;
+	hibit_mode_width = hwp->readCrtc(hwp, 0x01) + 1;
+
 	if (hibit_mode_width > 82) {
 	    xf86Msg(X_WARNING, "Non-standard VGA text or graphics mode while probing for hibit:\n");
 	    xf86Msg(X_WARNING, "    probed 'hibit' value may be wrong.\n");
 	    xf86Msg(X_WARNING, "    Preferably run probe from 80x25 textmode,\n");
 	    xf86Msg(X_WARNING, "    or specify correct value in X configuration file.\n");
 	}
+
 	/* Check for initial state of divide flag */
-	outb(0x3C4, 7);
-	pTseng->save_divide = inb(0x3C5) & 0x40;
+	pTseng->save_divide = hwp->readSeq(hwp, 0x07) & 0x40;
     }
     xf86DrvMsg(pScrn->scrnIndex, from, "Initial ET4000 hibit state: %s\n",
 	pTseng->save_divide & 0x40 ? "high" : "low");
@@ -1037,7 +1025,7 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
      * thing to do is to figure out the chipset and its capabilities.
      */
 
-    TsengUnlock();
+    TsengUnlock(pScrn);
 
     pTseng->PciInfo = xf86GetPciInfoForEntity(pTseng->pEnt->index);
     if (!TsengPreInitPCI(pScrn)) {
@@ -1274,7 +1262,7 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 	xf86LoaderReqSymLists(ramdacSymbols, NULL);
     }
-/*    TsengLock(); */
+/*    TsengLock(pScrn); */
 
     return TRUE;
 }
@@ -1565,7 +1553,7 @@ TsengEnterVT(int scrnIndex, int flags)
     PDEBUG("	TsengEnterVT\n");
 
     vgaHWUnlock(VGAHWPTR(pScrn));
-    TsengUnlock();
+    TsengUnlock(pScrn);
 
     if (!TsengModeInit(pScrn, pScrn->currentMode))
         return FALSE;
@@ -1585,7 +1573,7 @@ TsengLeaveVT(int scrnIndex, int flags)
     TsengRestore(pScrn, &(VGAHWPTR(pScrn)->SavedReg),
 		 &pTseng->SavedReg,VGA_SR_ALL);
 
-    TsengLock();
+    TsengLock(pScrn);
     vgaHWLock(VGAHWPTR(pScrn));
 }
 
@@ -1636,6 +1624,7 @@ static Bool
 TsengSaveScreen(ScreenPtr pScreen, int mode)
 {
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
     TsengPtr pTseng = TsengPTR(pScrn);
     Bool unblank;
 
@@ -1653,15 +1642,14 @@ TsengSaveScreen(ScreenPtr pScreen, int mode)
            /* vgaHWBlankScreen without seq reset */
            CARD8 scrn;
 
-           outb(0x3C4,1);
-           scrn = inb(0x3C5);
+           scrn = hwp->readSeq(hwp, 0x01);
            
            if (unblank)
                scrn &= 0xDF; /* enable screen */
            else
                scrn |= 0x20; /* blank screen */
 
-           outw(0x3C4, (scrn << 8) | 0x01); /* change mode */
+           hwp->writeSeq(hwp, 0x01, scrn); /* change mode */
        }
        return (TRUE);
     }

@@ -1,3 +1,28 @@
+2006-01-26  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng.h:
+	* src/tseng_cursor.c: (ET4000CursorRead), (ET4000CursorWrite),
+	(TsengShowCursor), (TsengHideCursor), (TsengSetCursorPosition),
+	(TsengSetCursorColors), (TsengLoadCursorImage),
+	(TsengHWCursorInit), (TsengCursorStore), (TsengCursorRestore):
+	* src/tseng_driver.c: (TsengUnlock), (TsengLock),
+	(TsengPreInitPCI), (et6000_check_videoram), (TsengDetectMem),
+	(TsengProcessHibit), (TsengPreInit), (TsengEnterVT),
+	(TsengLeaveVT), (TsengSaveScreen):
+	* src/tseng_mode.c: (vgaHWReadDacReadAddr), (vgaHWWriteBank),
+	(vgaHWReadBank), (vgaHWWriteSegment), (vgaHWReadSegment),
+	(vgaHWWriteModeControl), (vgaHWHerculesSecondPage), (ET6000IORead),
+	(ET6000IOWrite), (TsengRAMDACProbe), (tseng_set_ramdac_bpp),
+	(TsengAdjustFrame), (TsengSave), (TsengRestore), (TsengModeInit),
+	(TsengCrtcDPMSSet), (TsengHVSyncDPMSSet):
+
+	Improve tseng driver transparency.
+	- move all VGA inbs/outbs to vgahw calls, provide our own when 
+	  relevant callbacks are missing.
+	- move ET4000 sprite accesses to ET4000CursorRead/Write.
+	- move ET6000 IO accesses to ET6000IORead/Write.
+	- fix regression with CH8398, introduced with the ramdac cleanup.
+
 2006-01-23  Luc Verhaegen  <libv@skynet.be>
 
 	* src/Makefile.am:
