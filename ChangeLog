@@ -1,3 +1,11 @@
+2006-01-27  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng.h:
+	* src/tseng_mode.c: (tseng_set_ramdac_bpp), (tseng_clock_setup),
+	(TsengModeInit):
+
+	Clear duplicate PrivFlag.
+
 2006-01-26  Luc Verhaegen  <libv@skynet.be>
 
 	* src/tseng.h:

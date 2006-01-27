@@ -44,8 +44,6 @@
 #include "xf86Cursor.h"
 #include "xf86fbman.h"
 
-#define MAX_TSENG_CLOCK 86000	       /* default max clock for standard boards */
-
 /*
  * Contrary to the old driver, we use the "Chip Revision" here intead of
  * multiple chipsets like "TYPE_ET4000W32Pa", "TYPE_ET4000W32Pb", etc.
@@ -74,12 +72,6 @@ typedef enum {
     STG1703,
     CH8398
 } tseng_ramdac;
-
-typedef enum {
-    TSENG_MODE_NORMAL,
-    TSENG_MODE_PIXMUX,
-    TSENG_MODE_DACBUS16
-} t_clockrange_type;
 
 typedef struct {
     unsigned char cmd_reg;

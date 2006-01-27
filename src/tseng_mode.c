@@ -155,6 +155,12 @@ ET6000IOWrite(TsengPtr pTseng, CARD8 Offset, CARD8 Value)
 }
 
 /*
+ * mode/clockRange->PrivFlags
+ */
+#define TSENG_MODE_NORMAL 0
+#define TSENG_MODE_PIXMUX 1
+
+/*
  *
  * RAMDAC handling.
  *
@@ -316,15 +322,9 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
         else if (pScrn->bitsPerPixel == 16)
             pTseng->ModeReg.ET6K_58 |= 0x02; /* 5-6-5 RGB mode */
     } else {
-        Bool PixMux = FALSE;
-
-        if ((mode->PrivFlags == TSENG_MODE_DACBUS16) ||
-            (mode->PrivFlags == TSENG_MODE_PIXMUX))
-            PixMux = TRUE;
-
         /* ATC index 0x16 -- bits-per-PCLK */
         pTseng->ModeReg.ExtATC &= 0xCF;
-        if (PixMux)
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             pTseng->ModeReg.ExtATC |= 0x20;
 
         switch (pTseng->RAMDAC) {
@@ -334,13 +334,13 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
 
             switch (pScrn->bitsPerPixel) {
             case 8:
-                if (PixMux)
+                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
                     pTseng->ModeReg.pll.ctrl = 0x05;
                 else
                     pTseng->ModeReg.pll.ctrl = 0x00;
                 break;
             case 15:
-                if (PixMux)
+                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
                     pTseng->ModeReg.pll.ctrl = 0x02;
                 else
                     pTseng->ModeReg.pll.ctrl = 0x08;
@@ -379,25 +379,25 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
         case CH8398:
             switch (pScrn->bitsPerPixel) {
             case 8:
-                if (PixMux)
+                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
                     pTseng->ModeReg.pll.cmd_reg = 0x24;
                 else
                     pTseng->ModeReg.pll.cmd_reg = 0x04;
                 break;
             case 15:
-                if (PixMux)
+                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
                     pTseng->ModeReg.pll.cmd_reg = 0x14;
                 else
                     pTseng->ModeReg.pll.cmd_reg = 0xC4;
                 break;
             case 16:
-                if (PixMux)
+                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
                     pTseng->ModeReg.pll.cmd_reg = 0x34;
                 else
                     pTseng->ModeReg.pll.cmd_reg = 0x64;
                 break;
             case 24:
-                if (PixMux)
+                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
                     pTseng->ModeReg.pll.cmd_reg = 0xB4;
                 else
                     pTseng->ModeReg.pll.cmd_reg = 0x74;
@@ -412,20 +412,24 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
             return;
         }
     }
-#ifdef FIXME /* still needed? */
-    if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
-	VGAHWPTR(pScrn)->ModeReg.CRTC[0x17] &= 0xFB;
-
-	/* to avoid blurred vertical line during flyback, disable H-blanking
-	 * (better solution needed !!!)
-	 */
-	VGAHWPTR(pScrn)->ModeReg.CRTC[0x02] = 0xff;
-    }
-#endif
 }
 
+#define MAX_TSENG_CLOCK 86000	       /* default max clock for standard boards */
+
 /*
+ * Memory bandwidth is important in > 8bpp modes, especially on ET4000
  *
+ * This code evaluates a video mode with respect to requested dot clock
+ * (depends on the VGA chip and the RAMDAC) and the resulting bandwidth
+ * demand on memory (which in turn depends on color depth).
+ *
+ * For each mode, the minimum of max data transfer speed (dot clock
+ * limit) and memory bandwidth determines if the mode is allowed.
+ *
+ * We should also take acceleration into account: accelerated modes
+ * strain the bandwidth heavily, because they cause lots of random
+ * acesses to video memory, which is bad for bandwidth due to smaller
+ * page-mode memory requests.
  */
 void
 tseng_clock_setup(ScrnInfoPtr pScrn)
@@ -435,44 +439,27 @@ tseng_clock_setup(ScrnInfoPtr pScrn)
 
     PDEBUG("	tseng_clock_setup\n");
 
-    /*
-     * Memory bandwidth is important in > 8bpp modes, especially on ET4000
-     *
-     * This code evaluates a video mode with respect to requested dot clock
-     * (depends on the VGA chip and the RAMDAC) and the resulting bandwidth
-     * demand on memory (which in turn depends on color depth).
-     *
-     * For each mode, the minimum of max data transfer speed (dot clock
-     * limit) and memory bandwidth determines if the mode is allowed.
-     *
-     * We should also take acceleration into account: accelerated modes
-     * strain the bandwidth heavily, because they cause lots of random
-     * acesses to video memory, which is bad for bandwidth due to smaller
-     * page-mode memory requests.
-     */
-
     /* Set the min pixel clock */
-    pTseng->MinClock = 12000;	       /* XXX Guess, need to check this */
+    pTseng->MinClock = 12000; /* XXX Guess, need to check this */
 
-    /* default */
-    dacspeed = MAX_TSENG_CLOCK;
-    /*
-     * According to Tseng (about the ET6000):
-     * "Besides the 135 MHz maximum pixel clock frequency, the other limit has to
-     * do with where you get FIFO breakdown (usually appears as stray horizontal
-     * lines on the screen). Assuming the accelerator is running steadily doing a
-     * worst case operation, to avoid FIFO breakdown you should keep the product
-     *   pixel_clock*(bytes/pixel) <= 225 MHz . This is based on an XCLK
-     * (system/memory) clock of 92 MHz (which is what we currently use) and
-     * a value in the RAS/CAS Configuration register (CFG 44) of either 015h
-     * or 014h (depending on the type of MDRAM chips). Also, the FIFO low
-     * threshold control bit (bit 4 of CFG 41) should be set for modes where
-     * pixel_clock*(bytes/pixel) > 130 MHz . These limits are for the
-     * current ET6000 chips. The ET6100 will raise the pixel clock limit
-     * to 175 MHz and the pixel_clock*(bytes/pixel) FIFO breakdown limit
-     * to about 275 MHz."
-     */
     if (pTseng->ChipType == ET6000) {
+        /*
+         * According to Tseng (about the ET6000):
+         * "Besides the 135 MHz maximum pixel clock frequency, the other limit has to
+         * do with where you get FIFO breakdown (usually appears as stray horizontal
+         * lines on the screen). Assuming the accelerator is running steadily doing a
+         * worst case operation, to avoid FIFO breakdown you should keep the product
+         *   pixel_clock*(bytes/pixel) <= 225 MHz . This is based on an XCLK
+         * (system/memory) clock of 92 MHz (which is what we currently use) and
+         * a value in the RAS/CAS Configuration register (CFG 44) of either 015h
+         * or 014h (depending on the type of MDRAM chips). Also, the FIFO low
+         * threshold control bit (bit 4 of CFG 41) should be set for modes where
+         * pixel_clock*(bytes/pixel) > 130 MHz . These limits are for the
+         * current ET6000 chips. The ET6100 will raise the pixel clock limit
+         * to 175 MHz and the pixel_clock*(bytes/pixel) FIFO breakdown limit
+         * to about 275 MHz."
+         */
+
         if (pTseng->ChipRev == REV_ET6100) {
             dacspeed = 175000;
             mem_bw = 280000; /* 275000 is _just_ not enough for 1152x864x24 @ 70Hz */
@@ -480,103 +467,72 @@ tseng_clock_setup(ScrnInfoPtr pScrn)
             dacspeed = 135000;
             mem_bw = 225000;
         }
-    } else {
-        if (pScrn->bitsPerPixel == 8)
+
+        pTseng->max_vco_freq = dacspeed*2+1;
+
+        pTseng->clockRange[0] = xnfcalloc(sizeof(ClockRange), 1);
+        pTseng->clockRange[0]->next = NULL;
+        pTseng->clockRange[0]->minClock = pTseng->MinClock;
+        pTseng->clockRange[0]->maxClock = 
+            min(dacspeed, (mem_bw / pTseng->Bytesperpixel));
+        pTseng->clockRange[0]->clockIndex = -1;      /* programmable -- not used */
+        pTseng->clockRange[0]->interlaceAllowed = TRUE;
+        pTseng->clockRange[0]->doubleScanAllowed = TRUE;
+        pTseng->clockRange[0]->ClockMulFactor = 1;
+        pTseng->clockRange[0]->ClockDivFactor = 1;
+        pTseng->clockRange[0]->PrivFlags = TSENG_MODE_NORMAL;
+
+    	pTseng->MaxClock = pTseng->clockRange[0]->maxClock;
+    
+    } else { /* ET4000 */
+       if (pScrn->bitsPerPixel == 8)
             dacspeed = 135000; /* we can do PIXMUX */
         else
             dacspeed = MAX_TSENG_CLOCK;
         
         mem_bw	= 90000;
         if (pScrn->videoRam > 1024)
-            mem_bw = 150000; /* interleaved DRAM gives 70% more bandwidth */
-    }
-    pTseng->max_vco_freq = dacspeed*2+1;
+            mem_bw = 150000; /* interleaved DRAM gives 70% more bandwidth */ 
 
-    /*
-     * "dacspeed" is the theoretical limit imposed by the RAMDAC.
-     * "mem_bw" is the max memory bandwidth in mb/sec available
-     * for the pixel FIFO.
-     * The lowest of the two determines the actual pixel clock limit.
-     */
-    dacspeed = min(dacspeed, (mem_bw / pTseng->Bytesperpixel));
+        pTseng->max_vco_freq = dacspeed*2+1;
 
+        dacspeed = min(dacspeed, (mem_bw / pTseng->Bytesperpixel));
 
-    /*
-     * Setup the ClockRanges, which describe what clock ranges are available,
-     * and what sort of modes they can be used for.
-     *
-     * First, we set up the default case, and modify it later if needed.
-     */
-    pTseng->clockRange[0] = xnfcalloc(sizeof(ClockRange), 1);
-    pTseng->clockRange[0]->next = NULL;
-    pTseng->clockRange[0]->minClock = pTseng->MinClock;
-    pTseng->clockRange[0]->maxClock = dacspeed;
-    pTseng->clockRange[0]->clockIndex = -1;      /* programmable -- not used */
-    pTseng->clockRange[0]->interlaceAllowed = TRUE;
-    pTseng->clockRange[0]->doubleScanAllowed = TRUE;
-    pTseng->clockRange[0]->ClockMulFactor = 1;
-    pTseng->clockRange[0]->ClockDivFactor = 1;
-    pTseng->clockRange[0]->PrivFlags = TSENG_MODE_NORMAL;
-    
-    if (pTseng->ChipType == ET4000) {
-        /*
-         * Handle PIXMUX modes.
-         *
-         * NOTE: We disable PIXMUX when clockchip programming on the GenDAC
-         * family is disabled. PIXMUX requires that the N2 post-divider in the
-         * PLL clock programming word is >= 2, which is not always true for the
-         * default (BIOS) clocks programmed in the 8 clock registers.
-         */
+        /* 8bit dac bus */
+        pTseng->clockRange[0] = xnfcalloc(sizeof(ClockRange), 1);
+        pTseng->clockRange[0]->next = NULL;
+        pTseng->clockRange[0]->minClock = pTseng->MinClock;
+        pTseng->clockRange[0]->maxClock = 
+            min(MAX_TSENG_CLOCK / pTseng->Bytesperpixel, dacspeed);
+        pTseng->clockRange[0]->clockIndex = -1;      /* programmable -- not used */
+        pTseng->clockRange[0]->interlaceAllowed = TRUE;
+        pTseng->clockRange[0]->doubleScanAllowed = TRUE;
+        pTseng->clockRange[0]->ClockMulFactor = pTseng->Bytesperpixel;
+        pTseng->clockRange[0]->ClockDivFactor = 1;
+        pTseng->clockRange[0]->PrivFlags = TSENG_MODE_NORMAL;
+
+        /* 16bit dac bus */
+        pTseng->clockRange[1] = xnfcalloc(sizeof(ClockRange), 1);
+        pTseng->clockRange[0]->next = pTseng->clockRange[1];
+        pTseng->clockRange[1]->next = NULL;
+
         if (pScrn->bitsPerPixel == 8) {
-            pTseng->clockRange[0]->maxClock = MAX_TSENG_CLOCK;
-            /* set up 2nd clock range for PIXMUX modes */
-            pTseng->clockRange[1] = xnfcalloc(sizeof(ClockRange), 1);
-            pTseng->clockRange[0]->next = pTseng->clockRange[1];
-            pTseng->clockRange[1]->next = NULL;
             pTseng->clockRange[1]->minClock = 75000;
             pTseng->clockRange[1]->maxClock = dacspeed;
-            pTseng->clockRange[1]->clockIndex = -1;      /* programmable -- not used */
-            pTseng->clockRange[1]->interlaceAllowed = TRUE;
-            pTseng->clockRange[1]->doubleScanAllowed = TRUE;
-            pTseng->clockRange[1]->ClockMulFactor = 1;
-            pTseng->clockRange[1]->ClockDivFactor = 2;
-            pTseng->clockRange[1]->PrivFlags = TSENG_MODE_PIXMUX;
-        }
-
-        /*
-         * Handle 16/24/32 bpp modes that require some form of clock scaling. We
-         * can have either 8-bit DACs that require "bytesperpixel" clocks per
-         * pixel, or 16-bit DACs that can transport 8 or 16 bits per clock.
-         */
-        if (pTseng->Bytesperpixel > 1) {
-            /* in either 8 or 16-bit DAC case, we can use an 8-bit interface */
-            pTseng->clockRange[0]->maxClock = min(MAX_TSENG_CLOCK / pTseng->Bytesperpixel, dacspeed);
-            pTseng->clockRange[0]->ClockMulFactor = pTseng->Bytesperpixel;
-            pTseng->clockRange[0]->ClockDivFactor = 1;
-            /* in addition, 16-bit DACs can also transport 2 bytes per clock */
-            pTseng->clockRange[1] = xnfcalloc(sizeof(ClockRange), 1);
-            pTseng->clockRange[0]->next = pTseng->clockRange[1];
-            pTseng->clockRange[1]->next = NULL;
+        } else {
             pTseng->clockRange[1]->minClock = pTseng->MinClock;
             pTseng->clockRange[1]->maxClock = min((MAX_TSENG_CLOCK * 2) / pTseng->Bytesperpixel, dacspeed);
-            pTseng->clockRange[1]->clockIndex = -1;      /* programmable -- not used */
-            pTseng->clockRange[1]->interlaceAllowed = TRUE;
-            pTseng->clockRange[1]->doubleScanAllowed = TRUE;
-            pTseng->clockRange[1]->ClockMulFactor = pTseng->Bytesperpixel;
-            pTseng->clockRange[1]->ClockDivFactor = 2;
-            pTseng->clockRange[1]->PrivFlags = TSENG_MODE_DACBUS16;
         }
+
+        pTseng->clockRange[1]->clockIndex = -1; /* programmable -- not used */
+        pTseng->clockRange[1]->interlaceAllowed = TRUE;
+        pTseng->clockRange[1]->doubleScanAllowed = TRUE;
+        pTseng->clockRange[1]->ClockMulFactor = pTseng->Bytesperpixel;
+        pTseng->clockRange[1]->ClockDivFactor = 2;
+        pTseng->clockRange[1]->PrivFlags = TSENG_MODE_PIXMUX;
+        
+        pTseng->MaxClock = pTseng->clockRange[1]->maxClock;
     }
-
-    if (pTseng->clockRange[1])
-	pTseng->MaxClock = pTseng->clockRange[1]->maxClock;
-    else
-	pTseng->MaxClock = pTseng->clockRange[0]->maxClock;
-
-    xf86DrvMsg(pScrn->scrnIndex, X_DEFAULT, "Min pixel clock is %d MHz\n",
-	pTseng->MinClock / 1000);
-    xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Max pixel clock is %d MHz\n",
-	pTseng->MaxClock / 1000);
 }
 
 /*
@@ -1034,49 +990,53 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     TsengRegPtr initial = &(pTseng->SavedReg);
     int row_offset;
     int min_n2;
-    int hdiv = 1, hmul = 1;
 
     PDEBUG("	TsengModeInit\n");
 
-    switch (mode->PrivFlags) {
-	case TSENG_MODE_PIXMUX:
-	case TSENG_MODE_DACBUS16:
-	    hdiv = pTseng->clockRange[1]->ClockDivFactor;
-	    hmul = pTseng->clockRange[1]->ClockMulFactor;
-	    break;
-	default:
-	    hdiv = pTseng->clockRange[0]->ClockDivFactor;
-	    hmul = pTseng->clockRange[0]->ClockMulFactor;
-    }
+    if (pTseng->ChipType == ET4000) {
+        int hmul = pTseng->Bytesperpixel, hdiv;
 
-    /*
-     * Modify mode timings accordingly
-     */
-    if (!mode->CrtcHAdjusted) {
-	/* now divide and multiply the horizontal timing parameters as required */
-	mode->CrtcHTotal = (mode->CrtcHTotal * hmul) / hdiv;
-	mode->CrtcHDisplay = (mode->CrtcHDisplay * hmul) / hdiv;
-	mode->CrtcHSyncStart = (mode->CrtcHSyncStart * hmul) / hdiv;
-	mode->CrtcHSyncEnd = (mode->CrtcHSyncEnd * hmul) / hdiv;
-	mode->CrtcHBlankStart = (mode->CrtcHBlankStart * hmul) / hdiv;
-	mode->CrtcHBlankEnd = (mode->CrtcHBlankEnd * hmul) / hdiv;
-	mode->CrtcHSkew = (mode->CrtcHSkew * hmul) / hdiv;
-	if (pScrn->bitsPerPixel == 24) {
-	    int rgb_skew;
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
+            xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                       "Setting up for 16bit DAC bus.\n");
+            hdiv = 2;
+        } else {
+            xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                       "Setting up for 8bit DAC bus.\n");
+            hdiv = 1;
+        }
 
-	    /*
-	     * in 24bpp, the position of the BLANK signal determines the
-	     * phase of the R,G and B values. XFree86 sets blanking equal to
-	     * the Sync, so setting the Sync correctly will also set the
-	     * BLANK corectly, and thus also the RGB phase
-	     */
-	    rgb_skew = (mode->CrtcHTotal / 8 - mode->CrtcHBlankEnd / 8 - 1) % 3;
-	    mode->CrtcHBlankEnd += rgb_skew * 8 + 24;
-	    /* HBlankEnd must come BEFORE HTotal */
-	    if (mode->CrtcHBlankEnd > mode->CrtcHTotal)
-		mode->CrtcHBlankEnd -= 24;
-	}
-	mode->CrtcHAdjusted = TRUE;
+        /* Modify mode timings accordingly
+         * 
+         * If we move the vgaHWInit code up here directly, we no longer have
+         * to adjust mode->Crtc* but just handle things properly up here.
+         */
+        if (!mode->CrtcHAdjusted) {
+            /* now divide and multiply the horizontal timing parameters as required */
+            mode->CrtcHTotal = (mode->CrtcHTotal * hmul) / hdiv;
+            mode->CrtcHDisplay = (mode->CrtcHDisplay * hmul) / hdiv;
+            mode->CrtcHSyncStart = (mode->CrtcHSyncStart * hmul) / hdiv;
+            mode->CrtcHSyncEnd = (mode->CrtcHSyncEnd * hmul) / hdiv;
+            mode->CrtcHBlankStart = (mode->CrtcHBlankStart * hmul) / hdiv;
+            mode->CrtcHBlankEnd = (mode->CrtcHBlankEnd * hmul) / hdiv;
+            mode->CrtcHSkew = (mode->CrtcHSkew * hmul) / hdiv;
+            if (pScrn->bitsPerPixel == 24) {
+                int rgb_skew;
+                
+                /*
+                 * in 24bpp, the position of the BLANK signal determines the
+                 * phase of the R,G and B values. XFree86 sets blanking equal to
+                 * the Sync, so setting the Sync correctly will also set the
+                 * BLANK corectly, and thus also the RGB phase
+                 */
+                rgb_skew = (mode->CrtcHTotal / 8 - mode->CrtcHBlankEnd / 8 - 1) % 3;
+                mode->CrtcHBlankEnd += rgb_skew * 8 + 24;
+                /* HBlankEnd must come BEFORE HTotal */
+                if (mode->CrtcHBlankEnd > mode->CrtcHTotal)
+                    mode->CrtcHBlankEnd -= 24;
+            }
+            mode->CrtcHAdjusted = TRUE;
+        }
     }
 
     /* set clockIndex to "2" for programmable clocks */
@@ -1187,7 +1147,8 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
         case STG1703:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            if ((pScrn->bitsPerPixel == 8) &&
+                (mode->PrivFlags == TSENG_MODE_PIXMUX))
                 /* pixmux requires a post-div of 4 on ICS GenDAC clock generator */
                 min_n2 = 2;
             else
