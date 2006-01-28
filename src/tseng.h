@@ -100,6 +100,7 @@ typedef struct {
 
     CARD8 CursorCtrl;
     PllState pll; /* registers in GenDAC-like RAMDAC */
+    void *RAMDAC; /* new RAMDAC register pointer */
 
     CARD8 ATTdac_cmd;         /* command register for ATT 49x DACs */
 } TsengRegRec, *TsengRegPtr;

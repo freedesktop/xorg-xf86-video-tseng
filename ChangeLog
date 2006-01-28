@@ -1,6 +1,21 @@
 2006-01-28  Luc Verhaegen  <libv@skynet.be>
 
 	* src/tseng.h:
+	* src/tseng_driver.c: (TsengGetRec), (TsengFreeRec),
+	(TsengPreInit):
+	* src/tseng_mode.c: (STG1703Detect), (STG1703PrintRegs),
+	(STG1703Store), (STG1703Restore), (STG1703Clock), (STG1703Mode),
+	(TsengRAMDACProbe), (tseng_set_ramdac_bpp), (TsengSave),
+	(TsengRestore), (TsengModeInit):
+
+	Fully implement the SGS-Thomson STG-1703. This is working great
+	except for 24bpp, where there seems to be an offset issue. Red is
+	blue, green is red, blue is green. Will dig that one out later on.
+	8bpp and 16bpp (both with 8 and 16bit dac bus) and 32bpp are great.
+
+2006-01-28  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng.h:
 	* src/tseng_mode.c: (tseng_set_ramdac_bpp), (ET6000CalcClock),
 	(TsengSave), (TsengRestore), (TsengModeInit):
 	

@@ -168,9 +168,14 @@ ET6000IOWrite(TsengPtr pTseng, CARD8 Offset, CARD8 Value)
 
 /*
  *
+ * SGS-Thomson STG-1703
+ *
+ */
+/*
+ *
  */
 static Bool
-tsengSTG170xDetect(ScrnInfoPtr pScrn)
+STG1703Detect(ScrnInfoPtr pScrn)
 {
     TsengPtr pTseng = TsengPTR(pScrn);
     vgaHWPtr hwp = VGAHWPTR(pScrn);
@@ -222,6 +227,313 @@ tsengSTG170xDetect(ScrnInfoPtr pScrn)
     }
     return FALSE;
 }
+
+/*
+ *
+ */
+struct STG1703Regs {
+    CARD8 Command;
+    CARD8 Pixel;
+    CARD8 Timing;
+    CARD16 PLL;
+};
+
+/*
+ *
+ */
+static void
+STG1703PrintRegs(ScrnInfoPtr pScrn, struct STG1703Regs *Regs)
+{
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "STG1703 Registers:\n");
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "Command: 0x%02X\n",
+                   Regs->Command);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "Pixel mode: 0x%02X\n",
+                   Regs->Pixel);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "Timing: 0x%02X\n",
+                   Regs->Timing);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "PLL: 0x%04X\n",
+                   Regs->PLL);
+}
+
+/*
+ *
+ */
+static void
+STG1703Store(ScrnInfoPtr pScrn, struct STG1703Regs *Regs)
+{
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    CARD8 readDacMask;
+
+    /* save command register and dacMask*/
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    readDacMask = hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    Regs->Command = hwp->readDacMask(hwp);
+
+    /* enable indexed register space */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Command | 0x10);
+    
+    /* set the index for the pixel mode */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, 0x03);
+    hwp->writeDacMask(hwp, 0x00);
+    
+    Regs->Pixel = hwp->readDacMask(hwp); /* pixel mode */
+
+    hwp->readDacMask(hwp); /* skip secondary pixel mode */
+    
+    Regs->Timing = hwp->readDacMask(hwp); /* pipeline timing */
+
+    /* start over for the pll register */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+
+    /* set the index for VCLK2 */
+    hwp->writeDacMask(hwp, 0x24);
+    hwp->writeDacMask(hwp, 0x00);
+
+    Regs->PLL = hwp->readDacMask(hwp);
+    Regs->PLL |= (hwp->readDacMask(hwp) << 8);
+
+    /* restore command register and dacMask */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Command);
+
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->writeDacMask(hwp, readDacMask);
+
+    hwp->writeDacWriteAddr(hwp, 0x00);
+
+    STG1703PrintRegs(pScrn, Regs);
+}
+
+/*
+ *
+ */
+static void
+STG1703Restore(ScrnInfoPtr pScrn, struct STG1703Regs *Regs)
+{
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    CARD8 temp, readDacMask;
+
+    STG1703PrintRegs(pScrn, Regs);
+
+    /* save command register and dacMask*/
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    readDacMask = hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    temp = hwp->readDacMask(hwp);
+
+    /* enable indexed register space */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, temp | 0x10);
+    
+    /* set the index for the pixel mode */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, 0x03);
+    hwp->writeDacMask(hwp, 0x00);
+    
+    hwp->writeDacMask(hwp, Regs->Pixel); /* pixel mode */
+    hwp->writeDacMask(hwp, Regs->Pixel); /* also secondary */
+    hwp->writeDacMask(hwp, Regs->Timing); /* pipeline timing */
+
+    /* start over for the pll register */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+
+    /* set the index for VCLK2 */
+    hwp->writeDacMask(hwp, 0x24);
+    hwp->writeDacMask(hwp, 0x00);
+
+    hwp->writeDacMask(hwp, Regs->PLL & 0xFF);
+    hwp->writeDacMask(hwp, Regs->PLL >> 8);
+
+    /* restore command register */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Command);
+
+    /* Restore DacMask */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->writeDacMask(hwp, readDacMask);
+
+    hwp->writeDacWriteAddr(hwp, 0x00);   
+}
+
+/*
+ * Hope that the TVP3703 ramdac pll is the same as the STG1703.
+ */
+static CARD16
+STG1703Clock(ScrnInfoPtr pScrn, int Clock)
+{
+    CARD8 N1, N2, M;
+    CARD16 PLL = 0;
+    CARD32 Closest = 0xFFFFFFFF;
+
+    for (N2 = 0; N2 < 4; N2++) {
+        for (N1 = 7; N1 < 15; N1++) {
+            CARD8 divider = N1 << N2;
+            CARD32 temp;
+
+            /* check boundaries */
+            temp = Clock * divider;
+            if ((temp < (64000 * N1)) || (temp > (135000 * N1)))
+                continue;
+            
+            /* calculate 2M */
+            temp =  (2 * Clock * divider) / 14318;
+            if (temp > 258) /* (127 + 2) * 2 */
+                continue;
+
+            /* round up/down */
+            if (temp & 1)
+                M = temp / 2 + 1;
+            else
+                M = temp / 2;
+
+            /* is this the closest match? */
+            temp = (14318 * M) / divider;
+
+            if (temp > Clock)
+                temp -= Clock;
+            else
+                temp = Clock - temp;
+
+            if (temp < Closest) {
+                PLL = (M - 2) | ((N1 - 2) << 8) | (N2 << 13);
+                Closest = temp;
+            }
+        }
+    }
+
+    return PLL;
+}
+
+/*
+ * Copy the given Regs into a freshly alloced STG1703Regs
+ * and init it for the new mode.
+ */
+static struct STG1703Regs *
+STG1703Mode(ScrnInfoPtr pScrn, struct STG1703Regs *Saved,
+            DisplayModePtr mode)
+{
+    struct STG1703Regs *Regs;
+    int Clock = mode->Clock;
+
+    Regs = xnfalloc(sizeof(struct STG1703Regs));
+    memcpy(Regs, Saved, sizeof(struct STG1703Regs));
+
+    Regs->Command &= 0x04; /* keep 7.5 IRE setup setting */
+    Regs->Command |= 0x08; /* enable extended pixel modes */
+    
+    switch (pScrn->bitsPerPixel) {
+    case 8:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
+            Clock /= 2;
+            Regs->Pixel = 0x05;
+        } else
+            Regs->Pixel = 0x00;
+        /* high bits of Command are already zeroed */
+        break;
+    case 15:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Pixel = 0x02;
+        else {
+            Clock *= 2;
+            Regs->Pixel = 0x08;
+        }
+        Regs->Command |= 0xA0; /* 15bpp */
+        break;
+    case 16:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Pixel = 0x03;
+        else {
+           Clock *= 2;
+           Regs->Pixel = 0x06;
+        } 
+        Regs->Command |= 0xC0; /* 16bpp */
+        break;
+    case 24:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
+            Clock = mode->Clock * 3 / 2;
+            Regs->Pixel = 0x09;
+        }
+        Regs->Command |= 0xE0; /* 24bpp */
+        break;
+    case 32:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
+            Clock *= 2;
+            Regs->Pixel = 0x04;
+        }
+        Regs->Command |= 0xE0; /* 24bpp */
+        break;
+    default:
+        Regs->Pixel = 0x00;
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: STG1703 RAMDAC doesn't"
+                   " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
+    }
+    
+    /* set PLL (input) range */
+    if (mode->SynthClock <= 16000)
+        Regs->Timing = 0;
+    else if (mode->SynthClock <= 32000)
+        Regs->Timing = 1;
+    else if (mode->SynthClock <= 67500)
+        Regs->Timing = 2;
+    else
+        Regs->Timing = 3;
+
+    /* Calculate dotclock here */
+    Regs->PLL = STG1703Clock(pScrn, Clock);
+
+    STG1703PrintRegs(pScrn, Regs);
+
+    return Regs;
+}
+
+/*
+ *
+ * Chrontel CH8398A
+ *
+ */
 
 /*
  *
@@ -283,7 +595,7 @@ TsengRAMDACProbe(ScrnInfoPtr pScrn)
         CR = hwp->readDacMask(hwp);
         vgaHWReadDacWriteAddr(hwp);
 
-        if (!tsengSTG170xDetect(pScrn) && !tsengCH8398Detect(pScrn)) {
+        if (!STG1703Detect(pScrn) && !tsengCH8398Detect(pScrn)) {
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: Unable to probe RAMDAC\n",
                        __func__);
             return FALSE;
@@ -312,60 +624,7 @@ tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode, TsengRegPtr Regs)
 {
     TsengPtr pTseng = TsengPTR(pScrn);
     
-    /* ATC index 0x16 -- bits-per-PCLK */
-    Regs->ExtATC &= 0xCF;
-    if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-        Regs->ExtATC |= 0x20;
-    
     switch (pTseng->RAMDAC) {
-    case STG1703:
-        Regs->pll.cmd_reg &= 0x04; /* keep 7.5 IRE setup setting */
-        Regs->pll.cmd_reg |= 0x18; /* enable ext regs and pixel modes */
-        
-        switch (pScrn->bitsPerPixel) {
-        case 8:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                Regs->pll.ctrl = 0x05;
-            else
-                Regs->pll.ctrl = 0x00;
-            break;
-        case 15:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                Regs->pll.ctrl = 0x02;
-            else
-                Regs->pll.ctrl = 0x08;
-            Regs->pll.cmd_reg |= 0xA0;
-            break;
-        /* !!!! We only should do pixmux from here on end !!!! */  
-        case 16:
-            Regs->pll.ctrl = 0x03;
-            Regs->pll.cmd_reg |= 0xC0;
-            break;
-        case 24:
-            Regs->pll.ctrl = 0x09;
-            Regs->pll.cmd_reg |= 0xE0;
-            break;
-        case 32:
-            Regs->pll.ctrl = 0x04;
-            Regs->pll.cmd_reg |= 0xE0;
-            break;
-        default:
-            Regs->pll.ctrl = 0;
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: STG1703 RAMDAC doesn't"
-                       " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
-        }
-
-        /* set PLL (input) range */
-        if (mode->SynthClock <= 16000)
-            Regs->pll.timingctrl = 0;
-        else if (mode->SynthClock <= 32000)
-            Regs->pll.timingctrl = 1;
-        else if (mode->SynthClock <= 67500)
-            Regs->pll.timingctrl = 2;
-        else
-            Regs->pll.timingctrl = 3;
-
-        break;
     case CH8398:
         switch (pScrn->bitsPerPixel) {
         case 8:
@@ -719,28 +978,11 @@ TsengSave(ScrnInfoPtr pScrn)
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
         case STG1703:
-#ifdef TODO
-            /* Save STG 1703 GenDAC Command and PLL registers 
-             * unfortunately we reuse the gendac data structure, so the 
-             * field names are not really good.
-             */
+            if (!tsengReg->RAMDAC)
+                tsengReg->RAMDAC = (struct STG1703Regs *)
+                    xnfalloc(sizeof(struct STG1703Regs));
             
-            hwp->writeDacWriteAddr(hwp, 0x00);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            tsengReg->pll.cmd_reg = hwp->readDacMask(hwp); /* Enhanced command register */
-            hwp->writeDacWriteAddr(hwp, 0x00);
-
-            tsengReg->pll.f2_M = STG1703getIndex(0x24);	/* f2 PLL M divider */
-            tsengReg->pll.f2_N = hwp->readDacMask(hwp);	/* f2 PLL N1/N2 divider */
-
-            tsengReg->pll.ctrl = STG1703getIndex(0x03);	/* pixel mode select control */
-            tsengReg->pll.timingctrl = STG1703getIndex(0x05);	/* pll timing control */
-#else
-             xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
-#endif
+            STG1703Store(pScrn, (struct STG1703Regs *) tsengReg->RAMDAC);
             break;
         case CH8398:
             hwp->writeDacWriteAddr(hwp, 0x00);
@@ -834,32 +1076,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
         case STG1703:
-#ifdef TODO
-            /* Restore STG 170x GenDAC Command and PLL registers 
-             * we share one data structure with the gendac code, so the names
-             * are not too good.
-             */
-            
-	    STG1703setIndex(0x24, tsengReg->pll.f2_M);
-	    hwp->writeDacMask(hwp, tsengReg->pll.f2_N); /* use autoincrement */
-
-            STG1703setIndex(0x03, tsengReg->pll.ctrl); /* primary pixel mode */
-            hwp->writeDacMask(hwp, tsengReg->pll.ctrl); /* secondary pixel mode */
-            hwp->writeDacMask(hwp, tsengReg->pll.timingctrl); /* pipeline timing control */
-            usleep(500); /* 500 usec PLL settling time required */
-
-            STG1703magic(0);
-
-            hwp->writeDacWriteAddr(hwp, 0x00);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->writeDacMask(hwp, tsengReg->pll.cmd_reg); /* write enh command reg */
-            hwp->writeDacWriteAddr(hwp, 0x00);
-#else
-            xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
-#endif
+            STG1703Restore(pScrn, tsengReg->RAMDAC);
             break;
         case CH8398:
             hwp->writeDacWriteAddr(hwp, 0x00);
@@ -986,6 +1203,8 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 
     PDEBUG("	TsengModeInit\n");
 
+    new->RAMDAC = NULL;
+
     if (pTseng->ChipType == ET4000) {
         int hmul = pTseng->Bytesperpixel, hdiv;
 
@@ -1031,6 +1250,18 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
             mode->CrtcHAdjusted = TRUE;
         }
     }
+
+    /* Some mode info */
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "Setting up %s (%dMhz, %dbpp)\n",
+                   mode->name, mode->Clock, pScrn->bitsPerPixel);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7,
+                   "H: 0x%03X 0x%03X 0x%03X 0x%03X 0x%03X 0x%03X\n",
+                   mode->CrtcHDisplay, mode->CrtcHBlankStart, mode->CrtcHSyncStart,
+                   mode->CrtcHSyncEnd, mode->CrtcHBlankEnd, mode->CrtcHTotal);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7,
+                   "V: 0x%03X 0x%03X 0x%03X 0x%03X 0x%03X 0x%03X\n",
+                   mode->CrtcVDisplay, mode->CrtcVBlankStart, mode->CrtcVSyncStart,
+                   mode->CrtcVSyncEnd, mode->CrtcVBlankEnd, mode->CrtcVTotal);
 
     /* set clockIndex to "2" for programmable clocks */
     mode->ClockIndex = 2;
@@ -1139,22 +1370,8 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
         case STG1703:
-#ifdef TODO
-            if ((pScrn->bitsPerPixel == 8) &&
-                (mode->PrivFlags == TSENG_MODE_PIXMUX))
-                /* pixmux requires a post-div of 4 on ICS GenDAC clock generator */
-                min_n2 = 2;
-            else
-                min_n2 = 0;
-            TsengcommonCalcClock(mode->SynthClock, 1, 1, 31, min_n2, 3,
-                                 100000, pTseng->max_vco_freq,
-                                 &(new->pll.f2_M), &(new->pll.f2_N));
-            
-            new->pll.w_idx = 0;
-            new->pll.r_idx = 0;
-#else
-         xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
-#endif   
+            new->RAMDAC = 
+                (struct STG1703Regs *) STG1703Mode(pScrn, initial->RAMDAC, mode);
             break;
         case CH8398:
 #ifdef TODO
@@ -1249,20 +1466,26 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     /*
      * 16/24/32 bpp handling.
      */
-    if (pScrn->bitsPerPixel >= 8) {
-        if (pTseng->ChipType == ET6000) {
-            /* ATC index 0x16 -- bits-per-PCLK */
-            new->ExtATC &= 0xCF;
-            new->ExtATC |= (pTseng->Bytesperpixel - 1) << 4;
-            
-            if (pScrn->bitsPerPixel == 15)
-                new->ET6K_58 &= ~0x02; /* 5-5-5 RGB mode */
-            else if (pScrn->bitsPerPixel == 16)
-                new->ET6K_58 |= 0x02; /* 5-6-5 RGB mode */
-        } else
-            tseng_set_ramdac_bpp(pScrn, mode, new);
-	row_offset *= pTseng->Bytesperpixel;
+    if (pTseng->ChipType == ET6000) {
+        /* ATC index 0x16 -- bits-per-PCLK */
+        new->ExtATC &= 0xCF;
+        new->ExtATC |= (pTseng->Bytesperpixel - 1) << 4;
+        
+        if (pScrn->bitsPerPixel == 15)
+            new->ET6K_58 &= ~0x02; /* 5-5-5 RGB mode */
+        else if (pScrn->bitsPerPixel == 16)
+            new->ET6K_58 |= 0x02; /* 5-6-5 RGB mode */
+    } else {
+        /* ATC index 0x16 -- bits-per-PCLK */
+        new->ExtATC &= 0xCF;
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            new->ExtATC |= 0x20;
+        
+        tseng_set_ramdac_bpp(pScrn, mode, new);
     }
+
+    row_offset *= pTseng->Bytesperpixel;
+
 
     /*
      * Horizontal overflow settings: for modes with > 2048 pixels per line
@@ -1287,8 +1510,14 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	    new->CR36 |= 0x28;
     }
     vgaHWUnlock(hwp);		       /* TODO: is this needed (tsengEnterVT does this) */
+
     /* Program the registers */
     TsengRestore(pScrn, &hwp->ModeReg, new, VGA_SR_MODE);
+
+    /* clean up */
+    if (new->RAMDAC)
+        xfree(new->RAMDAC);
+
     return TRUE;
 }
 

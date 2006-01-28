@@ -296,7 +296,10 @@ tsengSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 static Bool
 TsengGetRec(ScrnInfoPtr pScrn)
 {
+    TsengPtr pTseng;
+
     PDEBUG("	TsengGetRec\n");
+
     /*
      * Allocate an TsengRec, and hook it into pScrn->driverPrivate.
      * pScrn->driverPrivate is initialised to NULL, so we can check if
@@ -306,7 +309,12 @@ TsengGetRec(ScrnInfoPtr pScrn)
 	return TRUE;
 
     pScrn->driverPrivate = xnfcalloc(sizeof(TsengRec), 1);
+
+    
     /* Initialise it here when needed (or possible) */
+    pTseng = TsengPTR(pScrn);
+
+    pTseng->SavedReg.RAMDAC = NULL;
 
     return TRUE;
 }
@@ -314,9 +322,18 @@ TsengGetRec(ScrnInfoPtr pScrn)
 static void
 TsengFreeRec(ScrnInfoPtr pScrn)
 {
+    TsengPtr pTseng;
+
     PDEBUG("	TsengFreeRec\n");
+
     if (pScrn->driverPrivate == NULL)
 	return;
+
+    pTseng = TsengPTR(pScrn);
+    
+    if (pTseng->SavedReg.RAMDAC)
+        xfree(pTseng->SavedReg.RAMDAC);
+
     xfree(pScrn->driverPrivate);
     pScrn->driverPrivate = NULL;
 }
@@ -1053,7 +1070,7 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
      * Our preference for depth 24 is 24bpp, so tell it that too.
      */
     if (!xf86SetDepthBpp(pScrn, 8, 8, 8, Support24bppFb | Support32bppFb |
-				SupportConvert32to24 | PreferConvert32to24)) {
+                         SupportConvert32to24 | PreferConvert32to24)) {
 	return FALSE;
     } else {
         if ((pTseng->ChipType == ET4000) && (pTseng->RAMDAC == CH8398) &&
@@ -1109,6 +1126,7 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	    ;
 	}
     }
+
     /* Set the default visual. */
     if (!xf86SetDefaultVisual(pScrn, -1)) 
 	return FALSE;
