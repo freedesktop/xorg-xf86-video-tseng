@@ -1,3 +1,13 @@
+2006-01-28  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng.h:
+	* src/tseng_mode.c: (tseng_set_ramdac_bpp), (ET6000CalcClock),
+	(TsengSave), (TsengRestore), (TsengModeInit):
+	
+	- Remove pTseng->ModeReg
+	- Split ET6000 bpp, dotclock and ram clock handling from the 
+	  ET4000s ramdac code.
+
 2006-01-27  Luc Verhaegen  <libv@skynet.be>
 
 	* src/tseng.h:

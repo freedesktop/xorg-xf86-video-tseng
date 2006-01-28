@@ -78,16 +78,13 @@ typedef struct {
     unsigned char f2_M;
     unsigned char f2_N;
     unsigned char ctrl;
-    unsigned char w_idx;
-    unsigned char r_idx;
+    unsigned char r_idx, w_idx;
     unsigned char timingctrl;	       /* for STG170x */
-    unsigned char MClkM, MClkN; /* PLL M/N values for MemClk programming */
 } PllState;
 
 typedef struct {
     CARD8 CR30, CR31, CR32, CR33, CR34, CR35, CR36, CR37, CR3F;
 
-    /* TS 0x06 .. 0x07 */
     CARD8 SR06, SR07;
 
     /* ATC 0x16 */
@@ -99,6 +96,7 @@ typedef struct {
     /* ET6000 PCI config space registers */
     CARD8 ET6K_13, ET6K_40, ET6K_41;
     CARD8 ET6K_44, ET6K_46, ET6K_58;
+    CARD16 ET6K_PLL, ET6K_MClk;
 
     CARD8 CursorCtrl;
     PllState pll; /* registers in GenDAC-like RAMDAC */
@@ -133,8 +131,7 @@ typedef struct {
     Bool W32Interleave;
     Bool ShowCache;
 
-    TsengRegRec SavedReg;	       /* saved Tseng registers at server start */
-    TsengRegRec ModeReg;
+    TsengRegRec SavedReg; /* saved Tseng registers at server start */
 
     tseng_chiptype  ChipType;  /* "Chipset" causes confusion with pScrn->chipset */
     tseng_chiprev  ChipRev;

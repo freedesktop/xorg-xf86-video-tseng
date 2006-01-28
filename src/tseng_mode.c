@@ -308,109 +308,98 @@ TsengRAMDACProbe(ScrnInfoPtr pScrn)
  * (also set VGA controller registers for pixmux and BPP)
  */
 static void
-tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode)
+tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode, TsengRegPtr Regs)
 {
     TsengPtr pTseng = TsengPTR(pScrn);
     
-    if (pTseng->ChipType == ET6000) {
-        /* ATC index 0x16 -- bits-per-PCLK */
-        pTseng->ModeReg.ExtATC &= 0xCF;
-        pTseng->ModeReg.ExtATC |= (pTseng->Bytesperpixel - 1) << 4;
-
-        if (pScrn->bitsPerPixel == 15)
-            pTseng->ModeReg.ET6K_58 &= ~0x02; /* 5-5-5 RGB mode */
-        else if (pScrn->bitsPerPixel == 16)
-            pTseng->ModeReg.ET6K_58 |= 0x02; /* 5-6-5 RGB mode */
-    } else {
-        /* ATC index 0x16 -- bits-per-PCLK */
-        pTseng->ModeReg.ExtATC &= 0xCF;
-        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-            pTseng->ModeReg.ExtATC |= 0x20;
-
-        switch (pTseng->RAMDAC) {
-        case STG1703:
-            pTseng->ModeReg.pll.cmd_reg &= 0x04; /* keep 7.5 IRE setup setting */
-            pTseng->ModeReg.pll.cmd_reg |= 0x18; /* enable ext regs and pixel modes */
-
-            switch (pScrn->bitsPerPixel) {
-            case 8:
-                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                    pTseng->ModeReg.pll.ctrl = 0x05;
-                else
-                    pTseng->ModeReg.pll.ctrl = 0x00;
-                break;
-            case 15:
-                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                    pTseng->ModeReg.pll.ctrl = 0x02;
-                else
-                    pTseng->ModeReg.pll.ctrl = 0x08;
-                pTseng->ModeReg.pll.cmd_reg |= 0xA0;
-                break;
-            /* !!!! We only should do pixmux from here on end !!!! */  
-            case 16:
-                pTseng->ModeReg.pll.ctrl = 0x03;
-                pTseng->ModeReg.pll.cmd_reg |= 0xC0;
-                break;
-            case 24:
-                pTseng->ModeReg.pll.ctrl = 0x09;
-                pTseng->ModeReg.pll.cmd_reg |= 0xE0;
-                break;
-            case 32:
-                pTseng->ModeReg.pll.ctrl = 0x04;
-                pTseng->ModeReg.pll.cmd_reg |= 0xE0;
-                break;
-            default:
-                pTseng->ModeReg.pll.ctrl = 0;
-                xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: STG1703 RAMDAC doesn't"
-                           " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
-            }
-
-            /* set PLL (input) range */
-            if (mode->SynthClock <= 16000)
-                pTseng->ModeReg.pll.timingctrl = 0;
-            else if (mode->SynthClock <= 32000)
-                pTseng->ModeReg.pll.timingctrl = 1;
-            else if (mode->SynthClock <= 67500)
-                pTseng->ModeReg.pll.timingctrl = 2;
+    /* ATC index 0x16 -- bits-per-PCLK */
+    Regs->ExtATC &= 0xCF;
+    if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+        Regs->ExtATC |= 0x20;
+    
+    switch (pTseng->RAMDAC) {
+    case STG1703:
+        Regs->pll.cmd_reg &= 0x04; /* keep 7.5 IRE setup setting */
+        Regs->pll.cmd_reg |= 0x18; /* enable ext regs and pixel modes */
+        
+        switch (pScrn->bitsPerPixel) {
+        case 8:
+            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+                Regs->pll.ctrl = 0x05;
             else
-                pTseng->ModeReg.pll.timingctrl = 3;
-
+                Regs->pll.ctrl = 0x00;
             break;
-        case CH8398:
-            switch (pScrn->bitsPerPixel) {
-            case 8:
-                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                    pTseng->ModeReg.pll.cmd_reg = 0x24;
-                else
-                    pTseng->ModeReg.pll.cmd_reg = 0x04;
-                break;
-            case 15:
-                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                    pTseng->ModeReg.pll.cmd_reg = 0x14;
-                else
-                    pTseng->ModeReg.pll.cmd_reg = 0xC4;
-                break;
-            case 16:
-                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                    pTseng->ModeReg.pll.cmd_reg = 0x34;
-                else
-                    pTseng->ModeReg.pll.cmd_reg = 0x64;
-                break;
-            case 24:
-                if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                    pTseng->ModeReg.pll.cmd_reg = 0xB4;
-                else
-                    pTseng->ModeReg.pll.cmd_reg = 0x74;
-                break;
-            default:
-                pTseng->ModeReg.pll.cmd_reg = 0;
-                xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: CH8398 RAMDAC doesn't"
-                           " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
-            }
+        case 15:
+            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+                Regs->pll.ctrl = 0x02;
+            else
+                Regs->pll.ctrl = 0x08;
+            Regs->pll.cmd_reg |= 0xA0;
+            break;
+        /* !!!! We only should do pixmux from here on end !!!! */  
+        case 16:
+            Regs->pll.ctrl = 0x03;
+            Regs->pll.cmd_reg |= 0xC0;
+            break;
+        case 24:
+            Regs->pll.ctrl = 0x09;
+            Regs->pll.cmd_reg |= 0xE0;
+            break;
+        case 32:
+            Regs->pll.ctrl = 0x04;
+            Regs->pll.cmd_reg |= 0xE0;
             break;
         default:
-            return;
+            Regs->pll.ctrl = 0;
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: STG1703 RAMDAC doesn't"
+                       " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
         }
+
+        /* set PLL (input) range */
+        if (mode->SynthClock <= 16000)
+            Regs->pll.timingctrl = 0;
+        else if (mode->SynthClock <= 32000)
+            Regs->pll.timingctrl = 1;
+        else if (mode->SynthClock <= 67500)
+            Regs->pll.timingctrl = 2;
+        else
+            Regs->pll.timingctrl = 3;
+
+        break;
+    case CH8398:
+        switch (pScrn->bitsPerPixel) {
+        case 8:
+            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+                Regs->pll.cmd_reg = 0x24;
+            else
+                Regs->pll.cmd_reg = 0x04;
+            break;
+        case 15:
+            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+                Regs->pll.cmd_reg = 0x14;
+            else
+                Regs->pll.cmd_reg = 0xC4;
+            break;
+        case 16:
+            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+                Regs->pll.cmd_reg = 0x34;
+            else
+                Regs->pll.cmd_reg = 0x64;
+            break;
+        case 24:
+            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+                Regs->pll.cmd_reg = 0xB4;
+            else
+                Regs->pll.cmd_reg = 0x74;
+            break;
+        default:
+            Regs->pll.cmd_reg = 0;
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: CH8398 RAMDAC doesn't"
+                       " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
+        }
+        break;
+    default:
+        return;
     }
 }
 
@@ -535,22 +524,25 @@ tseng_clock_setup(ScrnInfoPtr pScrn)
     }
 }
 
+
 /*
  *
  */
 #define BASE_FREQ         14.31818     /* MHz */
-static void
-TsengcommonCalcClock(long freq, int min_m, int min_n1, int max_n1, int min_n2, int max_n2,
-    long freq_min, long freq_max,
-    unsigned char *mdiv, unsigned char *ndiv)
+static CARD16
+ET6000CalcClock(long freq, int min_m, int min_n1, int max_n1, int min_n2,
+                int max_n2, long freq_min, long freq_max)
 {
     double ffreq, ffreq_min, ffreq_max;
     double div, diff, best_diff;
     unsigned int m;
-    unsigned char n1, n2;
-    unsigned char best_n1 = 16 + 2, best_n2 = 2, best_m = 125 + 2;
+    CARD8 n1, n2;
+    CARD8 best_n1 = 16 + 2, best_n2 = 2, best_m = 125 + 2;
+    CARD8 ndiv, mdiv;
+    
 
     PDEBUG("	commonCalcClock\n");
+
     ffreq = freq / 1000.0 / BASE_FREQ;
     ffreq_min = freq_min / 1000.0 / BASE_FREQ;
     ffreq_max = freq_max / 1000.0 / BASE_FREQ;
@@ -597,10 +589,12 @@ TsengcommonCalcClock(long freq, int min_m, int min_n1, int max_n1, int min_n2, i
 #endif
 
     if (max_n1 == 63)
-	*ndiv = (best_n1 - 2) | (best_n2 << 6);
+	ndiv = (best_n1 - 2) | (best_n2 << 6);
     else
-	*ndiv = (best_n1 - 2) | (best_n2 << 5);
-    *mdiv = best_m - 2;
+	ndiv = (best_n1 - 2) | (best_n2 << 5);
+    mdiv = best_m - 2;
+
+    return (ndiv << 8) | mdiv;
 }
 
 /*
@@ -793,13 +787,13 @@ TsengSave(ScrnInfoPtr pScrn)
 	temp = ET6000IORead(pTseng, 0x67); /* remember old CLKDAC index register pointer */
 
 	ET6000IOWrite(pTseng, 0x67, 0x02);
-	tsengReg->pll.f2_M = ET6000IORead(pTseng, 0x69);
-	tsengReg->pll.f2_N = ET6000IORead(pTseng, 0x69);
+	tsengReg->ET6K_PLL = ET6000IORead(pTseng, 0x69);
+	tsengReg->ET6K_PLL |= ET6000IORead(pTseng, 0x69) << 8;
 
 	/* save MClk values */
 	ET6000IOWrite(pTseng, 0x67, 0x0A);
-	tsengReg->pll.MClkM = ET6000IORead(pTseng, 0x69);
-	tsengReg->pll.MClkN = ET6000IORead(pTseng, 0x69);
+	tsengReg->ET6K_MClk = ET6000IORead(pTseng, 0x69);
+	tsengReg->ET6K_MClk |= ET6000IORead(pTseng, 0x69) << 8;
 
 	/* restore old index register */
 	ET6000IOWrite(pTseng, 0x67, temp);
@@ -912,8 +906,8 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
 	tmp = ET6000IORead(pTseng, 0x67);  /* remember old CLKDAC index register pointer */
 
 	ET6000IOWrite(pTseng, 0x67, 0x02);
-	ET6000IOWrite(pTseng, 0x69, tsengReg->pll.f2_M);
-	ET6000IOWrite(pTseng, 0x69, tsengReg->pll.f2_N);
+	ET6000IOWrite(pTseng, 0x69, tsengReg->ET6K_PLL & 0xFF);
+	ET6000IOWrite(pTseng, 0x69, tsengReg->ET6K_PLL >> 8);
 
 	/* set MClk values if needed, but don't touch them if not needed
          *
@@ -921,13 +915,13 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
          * total system crash, we'd better play it safe here.
          * N1 must be <= 4, and N2 should always be 1
          */
-        if ((tsengReg->pll.MClkN & 0xf8) != 0x20) {
-            xf86Msg(X_ERROR, "Internal Error in MClk registers: MClkM=0x%x, MClkN=0x%x\n",
-		    tsengReg->pll.MClkM, tsengReg->pll.MClkN);
+        if ((tsengReg->ET6K_MClk & 0xF800) != 0x2000) {
+            xf86Msg(X_ERROR, "Internal Error in MClk registers: MClk: 0x%04X\n",
+		    tsengReg->ET6K_MClk);
         } else {
             ET6000IOWrite(pTseng, 0x67, 10);
-            ET6000IOWrite(pTseng, 0x69, tsengReg->pll.MClkM);
-            ET6000IOWrite(pTseng, 0x69, tsengReg->pll.MClkN);
+            ET6000IOWrite(pTseng, 0x69, tsengReg->ET6K_MClk & 0xFF);
+            ET6000IOWrite(pTseng, 0x69, tsengReg->ET6K_MClk >> 8);
 	}
 	/* restore old index register */
         ET6000IOWrite(pTseng, 0x67, tmp);
@@ -984,12 +978,11 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
 Bool
 TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 {
-    vgaHWPtr hwp;
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
     TsengPtr pTseng = TsengPTR(pScrn);
-    TsengRegPtr new = &(pTseng->ModeReg);
     TsengRegPtr initial = &(pTseng->SavedReg);
+    TsengRegRec new[1];
     int row_offset;
-    int min_n2;
 
     PDEBUG("	TsengModeInit\n");
 
@@ -1043,7 +1036,6 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     mode->ClockIndex = 2;
 
     /* prepare standard VGA register contents */
-    hwp = VGAHWPTR(pScrn);
     if (!vgaHWInit(pScrn, mode))
 	return (FALSE);
     pScrn->vtSema = TRUE;
@@ -1147,6 +1139,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     if (pTseng->ChipType == ET4000) {
         switch (pTseng->RAMDAC) {
         case STG1703:
+#ifdef TODO
             if ((pScrn->bitsPerPixel == 8) &&
                 (mode->PrivFlags == TSENG_MODE_PIXMUX))
                 /* pixmux requires a post-div of 4 on ICS GenDAC clock generator */
@@ -1159,7 +1152,9 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
             
             new->pll.w_idx = 0;
             new->pll.r_idx = 0;
-            
+#else
+         xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
+#endif   
             break;
         case CH8398:
 #ifdef TODO
@@ -1181,9 +1176,9 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
         }
     } else {
 	/* setting min_n2 to "1" will ensure a more stable clock ("0" is allowed though) */
-	TsengcommonCalcClock(mode->SynthClock, 1, 1, 31, 1, 3, 100000,
-	    pTseng->max_vco_freq,
-	    &(new->pll.f2_M), &(new->pll.f2_N));
+	new->ET6K_PLL = ET6000CalcClock(mode->SynthClock, 1, 1, 31, 1, 3,
+                                        100000, pTseng->max_vco_freq);
+
 	/* above 130MB/sec, we enable the "LOW FIFO threshold" */
 	if (mode->Clock * pTseng->Bytesperpixel > 130000) {
 	    new->ET6K_41 |= 0x10;
@@ -1196,9 +1191,9 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	}
 
         /* according to Tseng Labs, N1 must be <= 4, and N2 should always be 1 for MClk */
-        TsengcommonCalcClock(pTseng->MemClk, 1, 1, 4, 1, 1,
-                             100000, pTseng->MaxClock * 2,
-                             &(new->pll.MClkM), &(new->pll.MClkN));
+        new->ET6K_MClk = ET6000CalcClock(pTseng->MemClk, 1, 1, 4, 1, 1,
+                                         100000, pTseng->MaxClock * 2);
+
 	/* 
 	 * Even when we don't allow setting the MClk value as described
 	 * above, we can use the FAST/MED/SLOW DRAM options to set up
@@ -1254,11 +1249,21 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     /*
      * 16/24/32 bpp handling.
      */
-
     if (pScrn->bitsPerPixel >= 8) {
-	tseng_set_ramdac_bpp(pScrn, mode);
+        if (pTseng->ChipType == ET6000) {
+            /* ATC index 0x16 -- bits-per-PCLK */
+            new->ExtATC &= 0xCF;
+            new->ExtATC |= (pTseng->Bytesperpixel - 1) << 4;
+            
+            if (pScrn->bitsPerPixel == 15)
+                new->ET6K_58 &= ~0x02; /* 5-5-5 RGB mode */
+            else if (pScrn->bitsPerPixel == 16)
+                new->ET6K_58 |= 0x02; /* 5-6-5 RGB mode */
+        } else
+            tseng_set_ramdac_bpp(pScrn, mode, new);
 	row_offset *= pTseng->Bytesperpixel;
     }
+
     /*
      * Horizontal overflow settings: for modes with > 2048 pixels per line
      */
