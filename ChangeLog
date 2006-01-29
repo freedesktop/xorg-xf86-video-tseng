@@ -1,3 +1,14 @@
+2006-01-29  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng_driver.c: (TsengPreInit):
+	* src/tseng_mode.c: (STG1703Detect), (STG1703Restore),
+	(STG1703Clock), (STG1703Mode), (CH8398Detect), (CH8398PrintRegs),
+	(CH8398Store), (CH8398Restore), (CH8398Clock), (CH8398Mode),
+	(TsengRAMDACProbe), (TsengSave), (TsengRestore), (TsengModeInit):
+
+	Fully implement the Chrontel CH8398. This has the exact same
+        24bpp weirdness, so i guess this is an fb issue.
+
 2006-01-28  Luc Verhaegen  <libv@skynet.be>
 
 	* src/tseng.h:

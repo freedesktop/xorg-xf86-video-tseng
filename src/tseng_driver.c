@@ -1073,13 +1073,6 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
                          SupportConvert32to24 | PreferConvert32to24)) {
 	return FALSE;
     } else {
-        if ((pTseng->ChipType == ET4000) && (pTseng->RAMDAC == CH8398) &&
-            (pScrn->bitsPerPixel == 32)) {
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                       "CH8398 RAMDAC doesn't support 32bpp.\n");
-            return FALSE;
-        }
-
         switch (pScrn->depth) {
         case 8:
         case 16:

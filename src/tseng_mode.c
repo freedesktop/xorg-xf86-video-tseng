@@ -32,23 +32,6 @@
 /*
  * lacking from hwp
  */
-static CARD8
-vgaHWReadDacWriteAddr(vgaHWPtr hwp)
-{
-    if (hwp->MMIOBase)
-	return MMIO_IN8(hwp->MMIOBase, hwp->MMIOOffset + VGA_DAC_WRITE_ADDR);
-    else
-	return inb(hwp->PIOOffset + VGA_DAC_WRITE_ADDR);
-}
-
-static CARD8
-vgaHWReadDacReadAddr(vgaHWPtr hwp)
-{
-    if (hwp->MMIOBase)
-	return MMIO_IN8(hwp->MMIOBase, hwp->MMIOOffset + VGA_DAC_READ_ADDR);
-    else
-	return inb(hwp->PIOOffset + VGA_DAC_READ_ADDR);
-}
 
 #define VGA_BANK 0x3CB
 
@@ -183,6 +166,7 @@ STG1703Detect(ScrnInfoPtr pScrn)
 
     /* TSENGFUNC(pScrn->scrnIndex); */
 
+    /* store command register and DacMask */
     hwp->writeDacWriteAddr(hwp, 0x00);
     readDacMask = hwp->readDacMask(hwp);
     hwp->readDacMask(hwp);
@@ -190,6 +174,7 @@ STG1703Detect(ScrnInfoPtr pScrn)
     hwp->readDacMask(hwp);
     temp = hwp->readDacMask(hwp);
 
+    /* enable extended registers */
     hwp->writeDacWriteAddr(hwp, 0x00);
     hwp->readDacMask(hwp);
     hwp->readDacMask(hwp);
@@ -197,6 +182,7 @@ STG1703Detect(ScrnInfoPtr pScrn)
     hwp->readDacMask(hwp);
     hwp->writeDacMask(hwp, temp | 0x10);
 
+    /* set index 0x0000 and read IDs */
     hwp->writeDacWriteAddr(hwp, 0x00);
     hwp->readDacMask(hwp);
     hwp->readDacMask(hwp);
@@ -208,6 +194,7 @@ STG1703Detect(ScrnInfoPtr pScrn)
     cid = hwp->readDacMask(hwp); /* company ID */
     did = hwp->readDacMask(hwp); /* device ID */
 
+    /* restore command register */
     hwp->writeDacWriteAddr(hwp, 0x00);
     hwp->readDacMask(hwp);
     hwp->readDacMask(hwp);
@@ -215,6 +202,7 @@ STG1703Detect(ScrnInfoPtr pScrn)
     hwp->readDacMask(hwp);
     hwp->writeDacMask(hwp, temp);
 
+    /* restore DacMask */
     hwp->writeDacWriteAddr(hwp, 0x00);
     hwp->writeDacMask(hwp, readDacMask);
     
@@ -395,7 +383,7 @@ STG1703Restore(ScrnInfoPtr pScrn, struct STG1703Regs *Regs)
     hwp->writeDacWriteAddr(hwp, 0x00);
     hwp->writeDacMask(hwp, readDacMask);
 
-    hwp->writeDacWriteAddr(hwp, 0x00);   
+    hwp->writeDacWriteAddr(hwp, 0x00);
 }
 
 /*
@@ -420,7 +408,7 @@ STG1703Clock(ScrnInfoPtr pScrn, int Clock)
             
             /* calculate 2M */
             temp =  (2 * Clock * divider) / 14318;
-            if (temp > 258) /* (127 + 2) * 2 */
+            if ((temp > 258) || (temp < 4)) /* (127 + 2) * 2 */
                 continue;
 
             /* round up/down */
@@ -456,7 +444,6 @@ STG1703Mode(ScrnInfoPtr pScrn, struct STG1703Regs *Saved,
             DisplayModePtr mode)
 {
     struct STG1703Regs *Regs;
-    int Clock = mode->Clock;
 
     Regs = xnfalloc(sizeof(struct STG1703Regs));
     memcpy(Regs, Saved, sizeof(struct STG1703Regs));
@@ -466,49 +453,40 @@ STG1703Mode(ScrnInfoPtr pScrn, struct STG1703Regs *Saved,
     
     switch (pScrn->bitsPerPixel) {
     case 8:
-        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
-            Clock /= 2;
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             Regs->Pixel = 0x05;
-        } else
+        else
             Regs->Pixel = 0x00;
         /* high bits of Command are already zeroed */
         break;
     case 15:
         if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             Regs->Pixel = 0x02;
-        else {
-            Clock *= 2;
+        else
             Regs->Pixel = 0x08;
-        }
         Regs->Command |= 0xA0; /* 15bpp */
         break;
     case 16:
         if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             Regs->Pixel = 0x03;
-        else {
-           Clock *= 2;
-           Regs->Pixel = 0x06;
-        } 
+        else
+            Regs->Pixel = 0x06;
         Regs->Command |= 0xC0; /* 16bpp */
         break;
     case 24:
-        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
-            Clock = mode->Clock * 3 / 2;
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             Regs->Pixel = 0x09;
-        }
         Regs->Command |= 0xE0; /* 24bpp */
         break;
     case 32:
-        if (mode->PrivFlags == TSENG_MODE_PIXMUX) {
-            Clock *= 2;
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             Regs->Pixel = 0x04;
-        }
         Regs->Command |= 0xE0; /* 24bpp */
         break;
     default:
         Regs->Pixel = 0x00;
-        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: STG1703 RAMDAC doesn't"
-                   " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "STG1703 RAMDAC doesn't"
+                   " support %dbpp.\n", pScrn->bitsPerPixel);
     }
     
     /* set PLL (input) range */
@@ -522,7 +500,7 @@ STG1703Mode(ScrnInfoPtr pScrn, struct STG1703Regs *Saved,
         Regs->Timing = 3;
 
     /* Calculate dotclock here */
-    Regs->PLL = STG1703Clock(pScrn, Clock);
+    Regs->PLL = STG1703Clock(pScrn, mode->Clock);
 
     STG1703PrintRegs(pScrn, Regs);
 
@@ -539,7 +517,7 @@ STG1703Mode(ScrnInfoPtr pScrn, struct STG1703Regs *Saved,
  *
  */
 static Bool
-tsengCH8398Detect(ScrnInfoPtr pScrn)
+CH8398Detect(ScrnInfoPtr pScrn)
 {
     TsengPtr pTseng = TsengPTR(pScrn);
     vgaHWPtr hwp = VGAHWPTR(pScrn);
@@ -552,14 +530,226 @@ tsengCH8398Detect(ScrnInfoPtr pScrn)
     hwp->readDacMask(hwp);
     hwp->readDacMask(hwp);
     temp = hwp->readDacMask(hwp);
+    hwp->writeDacWriteAddr(hwp, 0x00);
 
     if (temp == 0xC0) {
-        xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected Chrontel 8398 RAMDAC.\n");
+        xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Detected Chrontel CH8398 RAMDAC.\n");
         pTseng->RAMDAC = CH8398;
         return TRUE;
     }
     return FALSE;
 }
+
+/*
+ *
+ */
+struct CH8398Regs {
+    CARD8 Control;
+    CARD8 Aux;
+    CARD16 PLL;
+};
+
+/*
+ *
+ */
+static void
+CH8398PrintRegs(ScrnInfoPtr pScrn, struct CH8398Regs *Regs)
+{
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "CH8398 Registers:\n");
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "Control: 0x%02X\n",
+                   Regs->Control);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "Aux: 0x%02X\n",
+                   Regs->Aux);
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, 7, "PLL: 0x%04X\n",
+                   Regs->PLL);
+}
+
+/*
+ *
+ */
+static void
+CH8398Store(ScrnInfoPtr pScrn, struct CH8398Regs *Regs)
+{
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+    
+    /* Get the control and auxiliary registers. */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    Regs->Control = hwp->readDacMask(hwp);
+    Regs->Aux = hwp->readDacMask(hwp);
+    
+    /* Enable PLL RAM access mode through AUX */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Aux | 0x80);
+
+    /* Read PLL */
+    hwp->writeDacReadAddr(hwp, 0x02);
+    Regs->PLL = hwp->readDacData(hwp); /* N */
+    Regs->PLL |= hwp->readDacData(hwp) << 8; /* M and K*/
+
+    /* Disable PLL RAM access mode */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Aux & ~0x80);
+
+    /* exit sequence */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+
+    CH8398PrintRegs(pScrn, Regs);
+}
+
+/*
+ *
+ */
+static void
+CH8398Restore(ScrnInfoPtr pScrn, struct CH8398Regs *Regs)
+{
+    vgaHWPtr hwp = VGAHWPTR(pScrn);
+
+    CH8398PrintRegs(pScrn, Regs);
+
+    /* Write control and auxiliary registers */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Control);
+    hwp->writeDacMask(hwp, Regs->Aux | 0x80); /* enable PLL RAM mode as well */
+ 
+    /* Write PLL */
+    hwp->writeDacWriteAddr(hwp, 0x02);
+    hwp->writeDacData(hwp, Regs->PLL & 0xFF); /* N */
+    hwp->writeDacData(hwp, Regs->PLL >> 8); /* M and K */
+
+    /* Disable PLL RAM access mode */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->readDacMask(hwp);
+    hwp->writeDacMask(hwp, Regs->Aux & ~0x80);
+
+    /* exit sequence */
+    hwp->writeDacWriteAddr(hwp, 0x00);
+}
+
+/*
+ *
+ */
+static CARD16
+CH8398Clock(ScrnInfoPtr pScrn, int Clock)
+{
+    CARD16 PLL = 0;
+    CARD8 N, M, K;
+    CARD32 Closest = 0xFFFFFFFF;
+
+    if (Clock > 68000)
+        K = 0;
+    else
+        K = 1;
+
+    for (M = 2; M < 12; M++) {
+        CARD16 divider = M << K;
+        CARD32 temp;
+        
+        /* calculate 2N */
+        temp =  (2 * Clock * divider) / 14318;
+        if ((temp > 526) || (temp < 16)) /* (255 + 8) * 2 */
+            continue;
+        
+        /* round up/down */
+        if (temp & 1)
+            N = temp / 2 + 1;
+        else
+            N = temp / 2;
+        
+        /* is this the closest match? */
+        temp = (14318 * N) / divider;
+        
+        if (temp > Clock)
+            temp -= Clock;
+        else
+            temp = Clock - temp;
+        
+        if (temp < Closest) {
+            PLL = (N - 8) | ((M - 2) << 8) | (K << 14);
+            Closest = temp;
+        }
+    }
+
+    return PLL;
+}
+
+/*
+ *
+ */
+static struct CH8398Regs *
+CH8398Mode(ScrnInfoPtr pScrn, struct CH8398Regs *Saved,
+           DisplayModePtr mode)
+{
+    struct CH8398Regs *Regs;
+    int Clock = mode->Clock;
+
+    Regs = xnfalloc(sizeof(struct CH8398Regs));
+    memcpy(Regs, Saved, sizeof(struct CH8398Regs));
+
+    Regs->Control &= 0x0F;
+
+    switch (pScrn->bitsPerPixel) {
+    case 8:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Control |= 0x20;
+        else
+            Regs->Control |= 0x00;
+        break;
+    case 15:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Control |= 0x10;
+        else
+            Regs->Control |= 0xC0;
+        break;
+    case 16:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Control |= 0x30;
+        else
+            Regs->Control |= 0x60;
+        break;
+    case 24:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Control |= 0xB0;
+        else
+            Regs->Control |= 0x70;
+        break;
+    case 32:
+        if (mode->PrivFlags == TSENG_MODE_PIXMUX)
+            Regs->Control |= 0x50;
+        break;
+    default:
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "CH8398 RAMDAC doesn't"
+                   " support %dbpp.\n", pScrn->bitsPerPixel);
+    }
+
+    Regs->PLL = CH8398Clock(pScrn, Clock);
+
+    CH8398PrintRegs(pScrn, Regs);
+
+    return Regs;
+}
+
 
 /*
  *
@@ -583,83 +773,23 @@ TsengRAMDACProbe(ScrnInfoPtr pScrn)
         mclk /= ((dbyte & 0x1f) + 2) * (1 << ((dbyte >> 5) & 0x03));
         pTseng->MemClk = mclk;
 
+        return TRUE;
     } else { /* ET4000W32P has external ramdacs */
-        vgaHWPtr hwp = VGAHWPTR(pScrn);
-        CARD8 CR;
 
-        vgaHWReadDacWriteAddr(hwp);
-        hwp->readDacMask(hwp);
-        hwp->readDacMask(hwp);
-        hwp->readDacMask(hwp);
-        hwp->readDacMask(hwp);
-        CR = hwp->readDacMask(hwp);
-        vgaHWReadDacWriteAddr(hwp);
+        /* First look for CH8398 - as this is a non-invasive detection */
+        if (CH8398Detect(pScrn))
+            return TRUE;
 
-        if (!STG1703Detect(pScrn) && !tsengCH8398Detect(pScrn)) {
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: Unable to probe RAMDAC\n",
-                       __func__);
-            return FALSE;
-        }
-
-        vgaHWReadDacWriteAddr(hwp);
-        hwp->readDacMask(hwp);
-        hwp->readDacMask(hwp);
-        hwp->readDacMask(hwp);
-        hwp->readDacMask(hwp);
-        hwp->writeDacMask(hwp, CR);
-        vgaHWReadDacWriteAddr(hwp);
-
-        hwp->writeDacMask(hwp, 0xFF);
+        /* Now that we know that we won't mess up a CH8398 */
+        if (STG1703Detect(pScrn))
+            return TRUE;
+            
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Unable to probe RAMDAC\n");
+        return FALSE;
+        /* hwp->writeDacMask(hwp, 0xFF); */
     }
 
     return TRUE;
-}
-
-/*
- * This sets up the RAMDAC registers for the correct BPP and pixmux values.
- * (also set VGA controller registers for pixmux and BPP)
- */
-static void
-tseng_set_ramdac_bpp(ScrnInfoPtr pScrn, DisplayModePtr mode, TsengRegPtr Regs)
-{
-    TsengPtr pTseng = TsengPTR(pScrn);
-    
-    switch (pTseng->RAMDAC) {
-    case CH8398:
-        switch (pScrn->bitsPerPixel) {
-        case 8:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                Regs->pll.cmd_reg = 0x24;
-            else
-                Regs->pll.cmd_reg = 0x04;
-            break;
-        case 15:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                Regs->pll.cmd_reg = 0x14;
-            else
-                Regs->pll.cmd_reg = 0xC4;
-            break;
-        case 16:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                Regs->pll.cmd_reg = 0x34;
-            else
-                Regs->pll.cmd_reg = 0x64;
-            break;
-        case 24:
-            if (mode->PrivFlags == TSENG_MODE_PIXMUX)
-                Regs->pll.cmd_reg = 0xB4;
-            else
-                Regs->pll.cmd_reg = 0x74;
-            break;
-        default:
-            Regs->pll.cmd_reg = 0;
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: CH8398 RAMDAC doesn't"
-                       " support %dbpp.\n", __func__, pScrn->bitsPerPixel);
-        }
-        break;
-    default:
-        return;
-    }
 }
 
 #define MAX_TSENG_CLOCK 86000	       /* default max clock for standard boards */
@@ -981,45 +1111,13 @@ TsengSave(ScrnInfoPtr pScrn)
             if (!tsengReg->RAMDAC)
                 tsengReg->RAMDAC = (struct STG1703Regs *)
                     xnfalloc(sizeof(struct STG1703Regs));
-            
-            STG1703Store(pScrn, (struct STG1703Regs *) tsengReg->RAMDAC);
+            STG1703Store(pScrn, tsengReg->RAMDAC);
             break;
         case CH8398:
-            hwp->writeDacWriteAddr(hwp, 0x00);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            tsengReg->pll.cmd_reg = hwp->readDacMask(hwp); /* Enhanced command register */
-            hwp->writeDacWriteAddr(hwp, 0x00);
-
-            vgaHWReadDacWriteAddr(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            tsengReg->pll.timingctrl = hwp->readDacMask(hwp);
-
-            /* Save PLL */
-            temp = hwp->readCrtc(hwp, 0x31);
-            hwp->writeCrtc(hwp, 0x31, temp | (1 << 6));	/* set RS2 through CS3 */
-
-            /* We are in ClockRAM mode 0x3c7 = CRA, 0x3c8 = CWA, 0x3c9 = CDR */
-            tsengReg->pll.r_idx = vgaHWReadDacReadAddr(hwp);
-            tsengReg->pll.w_idx = vgaHWReadDacWriteAddr(hwp);
-            hwp->writeDacReadAddr(hwp, 10);
-            tsengReg->pll.f2_N = hwp->readDacData(hwp);
-            tsengReg->pll.f2_M = hwp->readDacData(hwp);
-            hwp->writeDacReadAddr(hwp, tsengReg->pll.r_idx);
-            /* !!! DAC_WRITE_ADDR is probably wrong here */
-            vgaHWReadDacWriteAddr(hwp);  /* loop to Clock Select Register */
-            vgaHWReadDacWriteAddr(hwp);
-            vgaHWReadDacWriteAddr(hwp);
-            vgaHWReadDacWriteAddr(hwp);
-            tsengReg->pll.ctrl = vgaHWReadDacWriteAddr(hwp);
-
-            hwp->writeCrtc(hwp, 0x31, temp);
+            if (!tsengReg->RAMDAC)
+                tsengReg->RAMDAC = (struct CH8398Regs *)
+                    xnfalloc(sizeof(struct CH8398Regs));
+            CH8398Store(pScrn, tsengReg->RAMDAC);
             break;
         default:
             break;
@@ -1079,40 +1177,7 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
             STG1703Restore(pScrn, tsengReg->RAMDAC);
             break;
         case CH8398:
-            hwp->writeDacWriteAddr(hwp, 0x00);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->writeDacMask(hwp, tsengReg->pll.cmd_reg); /* write enh command reg */
-            
-            vgaHWReadDacWriteAddr(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->readDacMask(hwp);
-            hwp->writeDacMask(hwp, tsengReg->pll.timingctrl);
-
-	    tmp = hwp->readCrtc(hwp, 0x31);
-	    hwp->writeCrtc(hwp, 0x31, tmp | (1 << 6)); /* Set RS2 through CS3 */
-
-	    /* We are in ClockRAM mode 0x3c7 = CRA, 0x3c8 = CWA, 0x3c9 = CDR */
-	    hwp->writeDacReadAddr(hwp, tsengReg->pll.r_idx);
-	    hwp->writeDacWriteAddr(hwp, 0x0A);
-	    hwp->writeDacData(hwp, tsengReg->pll.f2_N);
-	    hwp->writeDacData(hwp, tsengReg->pll.f2_M);
-	    hwp->writeDacWriteAddr(hwp, tsengReg->pll.w_idx);
-	    usleep(500);
-	    vgaHWReadDacReadAddr(hwp); /* reset sequence */
-            /* !!! DAC_WRITE_ADDR is probably wrong here */
-	    vgaHWReadDacWriteAddr(hwp); /* loop to Clock Select Register */
-	    vgaHWReadDacWriteAddr(hwp);
-	    vgaHWReadDacWriteAddr(hwp);
-	    vgaHWReadDacWriteAddr(hwp);
-	    hwp->writeDacWriteAddr(hwp, tsengReg->pll.ctrl);
-
-            hwp->writeCrtc(hwp, 0x31, tmp & 0x3F);
+            CH8398Restore(pScrn, tsengReg->RAMDAC);
             break;
         default:
             break;
@@ -1193,17 +1258,23 @@ TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg,
  *
  */
 Bool
-TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
+TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr OrigMode)
 {
     vgaHWPtr hwp = VGAHWPTR(pScrn);
     TsengPtr pTseng = TsengPTR(pScrn);
     TsengRegPtr initial = &(pTseng->SavedReg);
     TsengRegRec new[1];
+    DisplayModeRec mode[1];
     int row_offset;
 
     PDEBUG("	TsengModeInit\n");
 
     new->RAMDAC = NULL;
+    
+    /* We're altering this mode */
+    memcpy(mode, OrigMode, sizeof(DisplayModeRec));
+    mode->next = NULL;
+    mode->prev = NULL;
 
     if (pTseng->ChipType == ET4000) {
         int hmul = pTseng->Bytesperpixel, hdiv;
@@ -1223,32 +1294,31 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
          * If we move the vgaHWInit code up here directly, we no longer have
          * to adjust mode->Crtc* but just handle things properly up here.
          */
-        if (!mode->CrtcHAdjusted) {
-            /* now divide and multiply the horizontal timing parameters as required */
-            mode->CrtcHTotal = (mode->CrtcHTotal * hmul) / hdiv;
-            mode->CrtcHDisplay = (mode->CrtcHDisplay * hmul) / hdiv;
-            mode->CrtcHSyncStart = (mode->CrtcHSyncStart * hmul) / hdiv;
-            mode->CrtcHSyncEnd = (mode->CrtcHSyncEnd * hmul) / hdiv;
-            mode->CrtcHBlankStart = (mode->CrtcHBlankStart * hmul) / hdiv;
-            mode->CrtcHBlankEnd = (mode->CrtcHBlankEnd * hmul) / hdiv;
-            mode->CrtcHSkew = (mode->CrtcHSkew * hmul) / hdiv;
-            if (pScrn->bitsPerPixel == 24) {
-                int rgb_skew;
-                
-                /*
-                 * in 24bpp, the position of the BLANK signal determines the
-                 * phase of the R,G and B values. XFree86 sets blanking equal to
-                 * the Sync, so setting the Sync correctly will also set the
-                 * BLANK corectly, and thus also the RGB phase
-                 */
-                rgb_skew = (mode->CrtcHTotal / 8 - mode->CrtcHBlankEnd / 8 - 1) % 3;
-                mode->CrtcHBlankEnd += rgb_skew * 8 + 24;
-                /* HBlankEnd must come BEFORE HTotal */
-                if (mode->CrtcHBlankEnd > mode->CrtcHTotal)
-                    mode->CrtcHBlankEnd -= 24;
-            }
-            mode->CrtcHAdjusted = TRUE;
+        /* now divide and multiply the horizontal timing parameters as required */
+        mode->CrtcHTotal = (mode->CrtcHTotal * hmul) / hdiv;
+        mode->CrtcHDisplay = (mode->CrtcHDisplay * hmul) / hdiv;
+        mode->CrtcHSyncStart = (mode->CrtcHSyncStart * hmul) / hdiv;
+        mode->CrtcHSyncEnd = (mode->CrtcHSyncEnd * hmul) / hdiv;
+        mode->CrtcHBlankStart = (mode->CrtcHBlankStart * hmul) / hdiv;
+        mode->CrtcHBlankEnd = (mode->CrtcHBlankEnd * hmul) / hdiv;
+        mode->CrtcHSkew = (mode->CrtcHSkew * hmul) / hdiv;
+        if (pScrn->bitsPerPixel == 24) {
+            int rgb_skew;
+            
+            /*
+             * in 24bpp, the position of the BLANK signal determines the
+             * phase of the R,G and B values. XFree86 sets blanking equal to
+             * the Sync, so setting the Sync correctly will also set the
+             * BLANK corectly, and thus also the RGB phase
+             */
+            rgb_skew = (mode->CrtcHTotal / 8 - mode->CrtcHBlankEnd / 8 - 1) % 3;
+            mode->CrtcHBlankEnd += rgb_skew * 8 + 24;
+            /* HBlankEnd must come BEFORE HTotal */
+            if (mode->CrtcHBlankEnd > mode->CrtcHTotal)
+                mode->CrtcHBlankEnd -= 24;
         }
+
+        mode->Clock = (mode->Clock * hmul) / hdiv;
     }
 
     /* Some mode info */
@@ -1374,19 +1444,8 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
                 (struct STG1703Regs *) STG1703Mode(pScrn, initial->RAMDAC, mode);
             break;
         case CH8398:
-#ifdef TODO
-            Chrontel8391CalcClock(mode->SynthClock, &temp1, &temp2, &temp3);
-            new->pll.f2_N = (unsigned char)(temp2);
-            new->pll.f2_M = (unsigned char)(temp1 | (temp3 << 6));
-            /* ok LSB=f2_N and MSB=f2_M            */
-            /* now set the Clock Select Register(CSR)      */
-            new->pll.ctrl = (new->pll.ctrl | 0x90) & 0xF0;
-            new->pll.timingctrl &= 0x1F;
-            new->pll.r_idx = 0;
-            new->pll.w_idx = 0;
-#else
-            xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Not implemented!\n");
-#endif
+            new->RAMDAC = 
+                (struct CH8398Regs *) CH8398Mode(pScrn, initial->RAMDAC, mode);
             break;
         default:
             break;
@@ -1480,8 +1539,6 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
         new->ExtATC &= 0xCF;
         if (mode->PrivFlags == TSENG_MODE_PIXMUX)
             new->ExtATC |= 0x20;
-        
-        tseng_set_ramdac_bpp(pScrn, mode, new);
     }
 
     row_offset *= pTseng->Bytesperpixel;
