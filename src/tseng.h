@@ -74,15 +74,6 @@ typedef enum {
 } tseng_ramdac;
 
 typedef struct {
-    unsigned char cmd_reg;
-    unsigned char f2_M;
-    unsigned char f2_N;
-    unsigned char ctrl;
-    unsigned char r_idx, w_idx;
-    unsigned char timingctrl;	       /* for STG170x */
-} PllState;
-
-typedef struct {
     CARD8 CR30, CR31, CR32, CR33, CR34, CR35, CR36, CR37, CR3F;
 
     CARD8 SR06, SR07;
@@ -99,10 +90,7 @@ typedef struct {
     CARD16 ET6K_PLL, ET6K_MClk;
 
     CARD8 CursorCtrl;
-    PllState pll; /* registers in GenDAC-like RAMDAC */
     void *RAMDAC; /* new RAMDAC register pointer */
-
-    CARD8 ATTdac_cmd;         /* command register for ATT 49x DACs */
 } TsengRegRec, *TsengRegPtr;
 
 typedef struct {
@@ -118,7 +106,7 @@ typedef struct {
     /* normal stuff starts here */
     pciVideoPtr PciInfo;
     PCITAG PciTag;
-    int Save_Divide;
+
     Bool UsePCIRetry;		       /* Do we use PCI-retry or busy-waiting */
     Bool UseAccel;		       /* Do we use the XAA acceleration architecture */
     Bool HWCursor;		       /* Do we use the hardware cursor (if supported) */
@@ -143,13 +131,11 @@ typedef struct {
     CARD32 ET6000IOAddress; /* PCI config space base address for ET6000 */
     char * MMioBase;
 
-    int MinClock;
-    int MaxClock;
     int MemClk;  /* ET6000 only */
-    ClockRangePtr clockRange[2];
+    ClockRange clockRange;
     tseng_ramdac RAMDAC; /* ET4000W32p only */
 
-    int max_vco_freq;                  /* max internal VCO frequency */
+    int max_vco_freq;  /* ET6000: max internal VCO frequency */
     CloseScreenProcPtr CloseScreen;
     int save_divide;
     XAAInfoRecPtr AccelInfoRec;
@@ -219,7 +205,7 @@ void ET6000IOWrite(TsengPtr pTseng, CARD8 Offset, CARD8 Value);
 
 /* tseng_mode.c */
 Bool TsengRAMDACProbe(ScrnInfoPtr pScrn);
-void tseng_clock_setup(ScrnInfoPtr pScrn);
+void TsengSetupClockRange(ScrnInfoPtr pScrn);
 Bool TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
 void TsengAdjustFrame(int scrnIndex, int x, int y, int flags);
 ModeStatus TsengValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags);

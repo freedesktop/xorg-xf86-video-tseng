@@ -1179,10 +1179,9 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
     pScrn->videoRam = TsengLimitMem(pScrn, pScrn->videoRam);
 
     xf86DrvMsg(pScrn->scrnIndex, from, "VideoRAM: %d kByte.\n",
-	pScrn->videoRam);
+               pScrn->videoRam);
 
-    /* do all clock-related setup */
-    tseng_clock_setup(pScrn);
+     TsengSetupClockRange(pScrn);
     
     /*
      * xf86ValidateModes will check that the mode HTotal and VTotal values
@@ -1193,7 +1192,7 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 
     /* Select valid modes from those available */
     i = xf86ValidateModes(pScrn, pScrn->monitor->Modes,
-	pScrn->display->modes, pTseng->clockRange[0],
+	pScrn->display->modes, &pTseng->clockRange,
 	NULL, 32, pScrn->maxHValue, 8*pTseng->Bytesperpixel, /* H limits */
 	0, pScrn->maxVValue,	       /* V limits */
 	pScrn->display->virtualX,

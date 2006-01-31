@@ -1,3 +1,14 @@
+2006-01-31  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng.h:
+	* src/tseng_driver.c: (TsengPreInit):
+	* src/tseng_mode.c: (STG1703Mode), (CH8398Mode),
+	(TsengSetupClockRange), (TsengSave), (TsengRestore),
+	(TsengModeInit):
+
+	Remove dual clockranges. ET4000W32p now always uses the dac bus
+	as 16bits wide.
+
 2006-01-29  Luc Verhaegen  <libv@skynet.be>
 
 	* src/tseng_driver.c: (TsengPreInit):
