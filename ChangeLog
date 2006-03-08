@@ -1,3 +1,12 @@
+2006-03-08  Luc Verhaegen  <libv@skynet.be>
+
+	* src/tseng_mode.c: (STG1703Restore), (CH8398Store),
+	(TsengModeInit):
+
+	Remove daft dependance on mode->ClockIndex. We used it to tell
+	vgaHWInit to use clock 2, while ClockIndex = -1 is clock 3. So
+	just use clock 3 for the ramdacs and be done with.
+
 2006-01-31  Luc Verhaegen  <libv@skynet.be>
 
 	* src/tseng.h:

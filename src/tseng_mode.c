@@ -359,7 +359,7 @@ STG1703Restore(ScrnInfoPtr pScrn, struct STG1703Regs *Regs)
     hwp->readDacMask(hwp);
 
     /* set the index for VCLK2 */
-    hwp->writeDacMask(hwp, 0x24);
+    hwp->writeDacMask(hwp, 0x26);
     hwp->writeDacMask(hwp, 0x00);
 
     hwp->writeDacMask(hwp, Regs->PLL & 0xFF);
@@ -570,7 +570,7 @@ CH8398Store(ScrnInfoPtr pScrn, struct CH8398Regs *Regs)
     hwp->writeDacMask(hwp, Regs->Aux | 0x80);
 
     /* Read PLL */
-    hwp->writeDacReadAddr(hwp, 0x02);
+    hwp->writeDacReadAddr(hwp, 0x03);
     Regs->PLL = hwp->readDacData(hwp); /* N */
     Regs->PLL |= hwp->readDacData(hwp) << 8; /* M and K*/
 
@@ -1265,9 +1265,6 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr OrigMode)
                    "V: 0x%03X 0x%03X 0x%03X 0x%03X 0x%03X 0x%03X\n",
                    mode->CrtcVDisplay, mode->CrtcVBlankStart, mode->CrtcVSyncStart,
                    mode->CrtcVSyncEnd, mode->CrtcVBlankEnd, mode->CrtcVTotal);
-
-    /* set clockIndex to "2" for programmable clocks */
-    mode->ClockIndex = 2;
 
     /* prepare standard VGA register contents */
     if (!vgaHWInit(pScrn, mode))
