@@ -4,12 +4,13 @@
 #ifndef _TSENG_H
 #define _TSENG_H
 
+#include <string.h>
+
 /* All drivers should typically include these */
 #include "xf86.h"
 #include "xf86_OSproc.h"
 
 /* All drivers need this */
-#include "xf86_ansic.h"
 
 /* Everything using inb/outb, etc needs "compiler.h" */
 #include "compiler.h"
