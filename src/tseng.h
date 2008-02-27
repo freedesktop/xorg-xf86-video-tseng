@@ -4,6 +4,7 @@
 #ifndef _TSENG_H
 #define _TSENG_H
 
+#include "tseng_pcirename.h"
 #include <string.h>
 
 /* All drivers should typically include these */
@@ -106,7 +107,9 @@ typedef struct {
     unsigned char *BresenhamTable;
     /* normal stuff starts here */
     pciVideoPtr PciInfo;
+#ifndef XSERVER_LIBPCIACCESS
     PCITAG PciTag;
+#endif
 
     Bool UsePCIRetry;		       /* Do we use PCI-retry or busy-waiting */
     Bool UseAccel;		       /* Do we use the XAA acceleration architecture */
