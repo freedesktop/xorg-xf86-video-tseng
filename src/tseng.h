@@ -1,5 +1,4 @@
 
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng.h,v 1.37tsi Exp $ */
 
 #ifndef _TSENG_H
 #define _TSENG_H

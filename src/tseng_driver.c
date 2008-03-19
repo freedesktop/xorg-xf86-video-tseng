@@ -1,5 +1,4 @@
 /*
- * $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_driver.c,v 1.97tsi Exp $ 
  *
  * Copyright 1990,91 by Thomas Roell, Dinkelscherben, Germany.
  *
@@ -26,7 +25,6 @@
  *
  * Large parts rewritten for XFree86 4.0 by Koen Gadeyne.
  */
-/* $XConsortium: et4_driver.c /main/27 1996/10/28 04:48:15 kaleb $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
