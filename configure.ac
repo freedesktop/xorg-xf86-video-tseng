@@ -45,10 +45,6 @@ AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
 AC_PROG_CC
 
-if test "x$GCC" = "xyes"; then
-    CFLAGS="$CFLAGS -Wall -pedantic"
-fi
-
 AH_TOP([#include "xorg-server.h"])
 
 AC_ARG_WITH(xorg-module-dir,
