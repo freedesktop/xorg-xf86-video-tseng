@@ -1502,7 +1502,7 @@ TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr OrigMode)
 
     /* clean up */
     if (new->RAMDAC)
-        xfree(new->RAMDAC);
+        free(new->RAMDAC);
 
     return TRUE;
 }

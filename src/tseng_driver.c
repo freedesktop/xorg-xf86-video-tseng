@@ -269,9 +269,9 @@ TsengFreeRec(ScrnInfoPtr pScrn)
     pTseng = TsengPTR(pScrn);
     
     if (pTseng->SavedReg.RAMDAC)
-        xfree(pTseng->SavedReg.RAMDAC);
+        free(pTseng->SavedReg.RAMDAC);
 
-    xfree(pScrn->driverPrivate);
+    free(pScrn->driverPrivate);
     pScrn->driverPrivate = NULL;
 }
 
@@ -395,10 +395,10 @@ TsengProbe(DriverPtr drv, int flags)
                 foundScreen = TRUE;
             }
         }
-        xfree(usedChips);
+        free(usedChips);
     }
     
-    xfree(devSections);
+    free(devSections);
     return foundScreen;
 }
 
@@ -806,7 +806,7 @@ TsengProcessOptions(ScrnInfoPtr pScrn)
     xf86CollectOptions(pScrn, NULL);
 
     /* Process the options */
-    if (!(pTseng->Options = xalloc(sizeof(TsengOptions))))
+    if (!(pTseng->Options = malloc(sizeof(TsengOptions))))
 	return FALSE;
     memcpy(pTseng->Options, TsengOptions, sizeof(TsengOptions));
     xf86ProcessOptions(pScrn->scrnIndex, pScrn->options, pTseng->Options);
