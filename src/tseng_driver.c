@@ -883,7 +883,7 @@ TsengGetFbAddress(ScrnInfoPtr pScrn)
     PDEBUG("	TsengGetFbAddress\n");
 
     /* base0 is the framebuffer and base1 is the PCI IO space. */
-    if (PCI_REGION_BASE(pTseng->PciInfo, 0, REGION_MEM)) {
+    if (!PCI_REGION_BASE(pTseng->PciInfo, 0, REGION_MEM)) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "No valid Framebuffer address in PCI config space;\n");
         return FALSE;
