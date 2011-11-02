@@ -135,7 +135,7 @@ Tseng_OpenFramebuffer(
     TsengPtr pTseng = TsengPTR(pScrn);
 
     *name = NULL; 		/* no special device */
-    *mem = (unsigned char*)pTseng->FbAddress;
+    *mem = (unsigned char*)(uintptr_t)pTseng->FbAddress;
     *size = pTseng->FbMapSize;
     *offset = 0;                /* Always */
     *flags = 0;                 /* Root permissions OS-dependent */
