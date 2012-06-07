@@ -1266,7 +1266,7 @@ TsengSubsequentFillTrapezoidSolid(ytop, height, left, dxL, dyL, eL, right, dxR, 
 Bool
 TsengXAAInit(ScreenPtr pScreen)
 {
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
     TsengPtr pTseng = TsengPTR(pScrn);
     XAAInfoRecPtr pXAAinfo;
     BoxRec AvailFBArea;

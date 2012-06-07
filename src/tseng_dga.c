@@ -62,7 +62,7 @@ DGAFunctionRec TsengDGAFuncs = {
 Bool
 TsengDGAInit(ScreenPtr pScreen)
 {
-  ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+  ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
   TsengPtr pTseng = TsengPTR(pScrn);
   DGAModePtr modes = NULL, newmodes = NULL, currentMode;
   DisplayModePtr pMode, firstMode;
@@ -182,7 +182,7 @@ Tseng_SetViewport(
    TsengPtr pTseng = TsengPTR(pScrn);
    vgaHWPtr hwp = VGAHWPTR(pScrn);
 
-   TsengAdjustFrame(pScrn->pScreen->myNum, x, y, flags);
+   TsengAdjustFrame(ADJUST_FRAME_ARGS(pScrn, x, y));
    while((hwp->readST01(hwp) & 0x08));
    while(!(hwp->readST01(hwp) & 0x08));
 

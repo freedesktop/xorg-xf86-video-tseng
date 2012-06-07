@@ -982,9 +982,9 @@ ET6000CalcClock(long freq, int min_m, int min_n1, int max_n1, int min_n2,
  * adjust the current video frame (viewport) to display the mousecursor.
  */
 void
-TsengAdjustFrame(int scrnIndex, int x, int y, int flags)
+TsengAdjustFrame(ADJUST_FRAME_ARGS_DECL)
 {
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    SCRN_INFO_PTR(arg);
     TsengPtr pTseng = TsengPTR(pScrn);
     vgaHWPtr hwp = VGAHWPTR(pScrn);
     int Base;
@@ -1011,7 +1011,7 @@ TsengAdjustFrame(int scrnIndex, int x, int y, int flags)
  *
  */
 ModeStatus
-TsengValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags)
+TsengValidMode(SCRN_ARG_TYPE arg, DisplayModePtr mode, Bool verbose, int flags)
 {
 
     PDEBUG("	TsengValidMode\n");

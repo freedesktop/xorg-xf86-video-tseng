@@ -43,6 +43,7 @@
 #include "xf86Cursor.h"
 #include "xf86fbman.h"
 
+#include "compat-api.h"
 /*
  * Contrary to the old driver, we use the "Chip Revision" here intead of
  * multiple chipsets like "TYPE_ET4000W32Pa", "TYPE_ET4000W32Pb", etc.
@@ -208,8 +209,8 @@ void ET6000IOWrite(TsengPtr pTseng, CARD8 Offset, CARD8 Value);
 Bool TsengRAMDACProbe(ScrnInfoPtr pScrn);
 void TsengSetupClockRange(ScrnInfoPtr pScrn);
 Bool TsengModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
-void TsengAdjustFrame(int scrnIndex, int x, int y, int flags);
-ModeStatus TsengValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags);
+void TsengAdjustFrame(ADJUST_FRAME_ARGS_DECL);
+ModeStatus TsengValidMode(SCRN_ARG_TYPE arg, DisplayModePtr mode, Bool verbose, int flags);
 void TsengSave(ScrnInfoPtr pScrn);
 void TsengRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg, TsengRegPtr tsengReg, int flags);
 void TsengHVSyncDPMSSet(ScrnInfoPtr pScrn, int PowerManagementMode, int flags);

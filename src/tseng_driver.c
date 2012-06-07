@@ -60,18 +60,17 @@ static const OptionInfoRec * TsengAvailableOptions(int chipid, int busid);
 static void TsengIdentify(int flags);
 static Bool TsengProbe(DriverPtr drv, int flags);
 static Bool TsengPreInit(ScrnInfoPtr pScrn, int flags);
-static Bool TsengScreenInit(int Index, ScreenPtr pScreen, int argc,
-    char **argv);
-static Bool TsengEnterVT(int scrnIndex, int flags);
-static void TsengLeaveVT(int scrnIndex, int flags);
-static Bool TsengCloseScreen(int scrnIndex, ScreenPtr pScreen);
+static Bool TsengScreenInit(SCREEN_INIT_ARGS_DECL);
+static Bool TsengEnterVT(VT_FUNC_ARGS_DECL);
+static void TsengLeaveVT(VT_FUNC_ARGS_DECL);
+static Bool TsengCloseScreen(CLOSE_SCREEN_ARGS_DECL);
 static Bool TsengSaveScreen(ScreenPtr pScreen, int mode);
 
 /* Required if the driver supports mode switching */
-static Bool TsengSwitchMode(int scrnIndex, DisplayModePtr mode, int flags);
+static Bool TsengSwitchMode(SWITCH_MODE_ARGS_DECL);
 
 /* Optional functions */
-static void TsengFreeScreen(int scrnIndex, int flags);
+static void TsengFreeScreen(FREE_SCREEN_ARGS_DECL);
 
 /* If driver-specific config file entries are needed, this must be defined */
 /*static Bool   TsengParseConfig(ParseInfoPtr raw); */
@@ -1215,9 +1214,9 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 }
 
 static void 
-TsengSetupAccelMemory(int scrnIndex, ScreenPtr pScreen)
+TsengSetupAccelMemory(ScreenPtr pScreen)
 {
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
     TsengPtr pTseng = TsengPTR(pScrn);
     int offscreen_videoram, videoram_end, req_videoram;
     int i;
@@ -1236,7 +1235,7 @@ TsengSetupAccelMemory(int scrnIndex, ScreenPtr pScreen)
     videoram_end = pScrn->videoRam * 1024;
     offscreen_videoram = videoram_end -
 	pScrn->displayWidth * pScrn->virtualY * pTseng->Bytesperpixel;
-    xf86DrvMsgVerb(scrnIndex, X_INFO, v, "Available off-screen memory: %d bytes.\n",
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, v, "Available off-screen memory: %d bytes.\n",
 	offscreen_videoram);
 
     /*
@@ -1324,7 +1323,7 @@ TsengSetupAccelMemory(int scrnIndex, ScreenPtr pScreen)
 	}
     }
 
-    xf86DrvMsgVerb(scrnIndex, X_INFO, v,
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, v,
 	"Remaining off-screen memory available for pixmap cache: %d bytes.\n",
 	offscreen_videoram);
 
@@ -1333,7 +1332,7 @@ end_memsetup:
 }
 
 static Bool
-TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
+TsengScreenInit(SCREEN_INIT_ARGS_DECL)
 {
     ScrnInfoPtr pScrn;
     TsengPtr pTseng;
@@ -1345,7 +1344,7 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* 
      * First get the ScrnInfoRec
      */
-    pScrn = xf86Screens[pScreen->myNum];
+    pScrn = xf86ScreenToScrn(pScreen);
 
     pTseng = TsengPTR(pScrn);
     /* Map the Tseng memory areas */
@@ -1361,7 +1360,7 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* Darken the screen for aesthetic reasons and set the viewport */
     TsengSaveScreen(pScreen, SCREEN_SAVER_ON);
 
-    TsengAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
+    TsengAdjustFrame(ADJUST_FRAME_ARGS(pScrn, pScrn->frameX0, pScrn->frameY0));
     /* XXX Fill the screen with black */
 
     /*
@@ -1444,7 +1443,7 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /*
      * Initialize the acceleration interface.
      */
-    TsengSetupAccelMemory(scrnIndex, pScreen);
+    TsengSetupAccelMemory(pScreen);
     if (pTseng->UseAccel) {
 	tseng_init_acl(pScrn);	/* set up accelerator */
 	if (!TsengXAAInit(pScreen)) {	/* set up XAA interface */
@@ -1499,9 +1498,9 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 }
 
 static Bool
-TsengEnterVT(int scrnIndex, int flags)
+TsengEnterVT(VT_FUNC_ARGS_DECL)
 {
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    SCRN_INFO_PTR(arg);
     TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengEnterVT\n");
@@ -1518,9 +1517,9 @@ TsengEnterVT(int scrnIndex, int flags)
 }
 
 static void
-TsengLeaveVT(int scrnIndex, int flags)
+TsengLeaveVT(VT_FUNC_ARGS_DECL)
 {
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    SCRN_INFO_PTR(arg);
     TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengLeaveVT\n");
@@ -1532,9 +1531,9 @@ TsengLeaveVT(int scrnIndex, int flags)
 }
 
 static Bool
-TsengCloseScreen(int scrnIndex, ScreenPtr pScreen)
+TsengCloseScreen(CLOSE_SCREEN_ARGS_DECL)
 {
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
     TsengPtr pTseng = TsengPTR(pScrn);
 
     PDEBUG("	TsengCloseScreen\n");
@@ -1552,7 +1551,7 @@ TsengCloseScreen(int scrnIndex, ScreenPtr pScreen)
     pScrn->vtSema = FALSE;
 
     pScreen->CloseScreen = pTseng->CloseScreen;
-    return (*pScreen->CloseScreen) (scrnIndex, pScreen);
+    return (*pScreen->CloseScreen) (CLOSE_SCREEN_ARGS);
 }
 
 /*
@@ -1577,7 +1576,7 @@ TsengCloseScreen(int scrnIndex, ScreenPtr pScreen)
 static Bool
 TsengSaveScreen(ScreenPtr pScreen, int mode)
 {
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
     vgaHWPtr hwp = VGAHWPTR(pScrn);
     TsengPtr pTseng = TsengPTR(pScrn);
     Bool unblank;
@@ -1694,17 +1693,19 @@ TsengUnmapMem(ScrnInfoPtr pScrn)
 }
 
 static void
-TsengFreeScreen(int scrnIndex, int flags)
+TsengFreeScreen(FREE_SCREEN_ARGS_DECL)
 {
+    SCRN_INFO_PTR(arg);
     PDEBUG("	TsengFreeScreen\n");
     if (xf86LoaderCheckSymbol("vgaHWFreeHWRec"))
-	vgaHWFreeHWRec(xf86Screens[scrnIndex]);
-    TsengFreeRec(xf86Screens[scrnIndex]);
+        vgaHWFreeHWRec(pScrn);
+    TsengFreeRec(pScrn);
 }
 
 static Bool
-TsengSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
+TsengSwitchMode(SWITCH_MODE_ARGS_DECL)
 {
+    SCRN_INFO_PTR(arg);
     PDEBUG("	TsengSwitchMode\n");
-    return TsengModeInit(xf86Screens[scrnIndex], mode);
+    return TsengModeInit(pScrn, mode);
 }
