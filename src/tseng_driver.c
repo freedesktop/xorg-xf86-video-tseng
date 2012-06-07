@@ -34,6 +34,8 @@
 
 #include "tseng.h"		       /* this includes most of the generic ones as well */
 
+#include "xf86PciInfo.h"
+
 /* All drivers initialising the SW cursor need this */
 #include "mipointer.h"
 
