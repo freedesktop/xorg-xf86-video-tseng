@@ -35,8 +35,10 @@
 #include "fb.h"
 
 /* Drivers using the XAA interface ... */
+#ifdef HAVE_XAA_H
 #include "xaa.h"
 #include "xaalocal.h"
+#endif
 #include "xf86Cursor.h"
 #include "xf86fbman.h"
 
@@ -137,7 +139,9 @@ typedef struct {
     int max_vco_freq;  /* ET6000: max internal VCO frequency */
     CloseScreenProcPtr CloseScreen;
     int save_divide;
+#ifdef HAVE_XAA_H
     XAAInfoRecPtr AccelInfoRec;
+#endif
     xf86CursorInfoPtr CursorInfoRec;
     CARD32 AccelColorBufferOffset;     /* offset in video memory where FG and BG colors will be stored */
     CARD32 AccelColorExpandBufferOffsets[3];   /* offset in video memory for ColorExpand buffers */

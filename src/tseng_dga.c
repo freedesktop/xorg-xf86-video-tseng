@@ -36,12 +36,14 @@ static Bool Tseng_SetMode(ScrnInfoPtr, DGAModePtr);
 static void Tseng_Sync(ScrnInfoPtr);
 static int  Tseng_GetViewport(ScrnInfoPtr);
 static void Tseng_SetViewport(ScrnInfoPtr, int, int, int);
+#ifdef HAVE_XAA_H
 static void Tseng_FillRect(ScrnInfoPtr, int, int, int, int, unsigned long);
 static void Tseng_BlitRect(ScrnInfoPtr, int, int, int, int, int, int);
 /*
 static void Tseng_BlitTransRect(ScrnInfoPtr, int, int, int, int, int, int, 
                                 unsigned long);
 */
+#endif
 
 static
 DGAFunctionRec TsengDGAFuncs = {
@@ -51,9 +53,13 @@ DGAFunctionRec TsengDGAFuncs = {
    Tseng_SetViewport,
    Tseng_GetViewport,
    Tseng_Sync,
+#ifdef HAVE_XAA_H
    Tseng_FillRect,
    Tseng_BlitRect,
    NULL  /* Tseng_BlitTransRect */
+#else
+   NULL, NULL, NULL
+#endif
 };
 
 
@@ -84,8 +90,10 @@ TsengDGAInit(ScreenPtr pScreen)
       num++;
       (void)memset(currentMode, 1, sizeof(DGAModeRec));
       currentMode->mode = pMode;
-      currentMode->flags = DGA_PIXMAP_AVAILABLE
-	  | ((pTseng->UseAccel) ? (DGA_FILL_RECT | DGA_BLIT_RECT) : 0);
+      currentMode->flags = DGA_PIXMAP_AVAILABLE;
+#ifdef HAVE_XAA_H
+      currentMode->flags |= ((pTseng->UseAccel) ? (DGA_FILL_RECT | DGA_BLIT_RECT) : 0);
+#endif
       if (pMode->Flags & V_DBLSCAN)
 	currentMode->flags |= DGA_DOUBLESCAN;
       if(pMode->Flags & V_INTERLACE)
@@ -205,12 +213,14 @@ Tseng_Sync(
    ScrnInfoPtr pScrn
 ){
     TsengPtr pTseng = TsengPTR(pScrn);
-
+#ifdef HAVE_XAA_H
     if(pTseng->AccelInfoRec) {
 	(*pTseng->AccelInfoRec->Sync)(pScrn);
     }
+#endif
 }
 
+#ifdef HAVE_XAA_H
 static void 
 Tseng_FillRect (
    ScrnInfoPtr pScrn, 
@@ -246,3 +256,4 @@ Tseng_BlitRect(
 	SET_SYNC_FLAG(pTseng->AccelInfoRec);
     }
 }
+#endif

@@ -1545,8 +1545,10 @@ TsengCloseScreen(CLOSE_SCREEN_ARGS_DECL)
 		 &(pTseng->SavedReg),VGA_SR_ALL);
     TsengUnmapMem(pScrn);
     }
+#ifdef HAVE_XAA_H
     if (pTseng->AccelInfoRec)
 	XAADestroyInfoRec(pTseng->AccelInfoRec);
+#endif
     if (pTseng->CursorInfoRec)
 	xf86DestroyCursorInfoRec(pTseng->CursorInfoRec);
 
